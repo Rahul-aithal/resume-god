@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+
+# Local source material and fixtures contain private application data.
+inputs/
+fixtures/jds/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+build/
+dist/
+outputs/
+*.pdf

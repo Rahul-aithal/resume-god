@@ -1,0 +1,1255 @@
+version: 1
+status: user_reviewed
+
+metadata:
+  name: Rahul Aithal
+  profile_title: Master resume profile
+  review_rule: LLM selection and rewriting may use only facts present in this profile.
+  review_completed_on: "2026-09-25"
+
+sources:
+  - id: automation_resume
+    path: inputs/Rahul_Aithal_Automation_Role.pdf
+    resume_version: AI Automation
+    format: pdf
+  - id: swe_resume
+    path: inputs/Rahul_Aithal_SWE_Final.pdf
+    resume_version: SWE / Full-Stack
+    format: pdf
+  - id: user_review_2026_09_25
+    path: PHASE_0_REVIEW.md
+    resume_version: User review decisions
+    format: markdown
+    reviewed_on: "2026-09-25"
+
+contact:
+  name: Rahul Aithal
+  location: Bengaluru, KA
+  phone: "+91-9449332162"
+  email: aithalrahul34@gmail.com
+  links:
+    - label: LinkedIn
+      url: https://linkedin.com/in/rahul-aithal
+    - label: GitHub
+      url: https://github.com/Rahul-aithal
+    - label: Portfolio
+      url: https://rahulaithal.site/
+
+# The two original summaries are retained verbatim. They are tailored narratives,
+# not canonical resume facts, so Phase 0 does not silently select one.
+source_summaries:
+  - source: automation_resume
+    text: >-
+      Full-stack developer and AI automation builder with production experience
+      replacing manual workflows with LLM-powered pipelines, MCP servers, and
+      agentic tooling. Proficient in Python, JavaScript/TypeScript, Go, Node.js,
+      FastAPI, and React, with hands-on experience building n8n automation
+      workflows, MCP servers, LLM API integrations, and end-to-end AI agents.
+      Delivered a production AI summarization pipeline at a professional
+      internship and built an MCP server used by a live LLM agent — demonstrating
+      the ability to ship real AI infrastructure independently.
+  - source: swe_resume
+    text: >-
+      Full-stack Software Engineer and final-year B.E. Computer Science student
+      with production internship experience at two companies — currently building
+      admin platform UI at XParth Technologies using Next.js, TypeScript, and
+      TanStack, and previously delivering backend APIs, microservices, and
+      cloud-deployed SaaS at Pragya Cyber Ltd. Proficient in Node.js, NestJS,
+      TypeScript, React, Next.js, and REST APIs, with solid working knowledge of
+      PostgreSQL, MongoDB, Docker, and AWS EC2.
+
+skills:
+  - id: skill_python
+    name: Python
+    category: Programming Languages
+    aliases: []
+  - id: skill_javascript
+    name: JavaScript
+    category: Programming Languages
+    aliases: []
+  - id: skill_typescript
+    name: TypeScript
+    category: Programming Languages
+    aliases: []
+  - id: skill_go
+    name: Go
+    category: Programming Languages
+    aliases: [Golang]
+  - id: skill_cpp
+    name: C++
+    category: Programming Languages
+    aliases: []
+  - id: skill_sql
+    name: SQL
+    category: Programming Languages
+    aliases: []
+
+  - id: skill_n8n
+    name: n8n
+    category: AI & Automation
+    aliases: []
+  - id: skill_model_context_protocol
+    name: Model Context Protocol
+    category: AI & Automation
+    aliases: [MCP, MCP Protocol]
+  - id: skill_llm_integration
+    name: LLM Integration
+    category: AI & Automation
+    aliases: [LLM API Integration]
+  - id: skill_prompt_engineering
+    name: Prompt Engineering
+    category: AI & Automation
+    aliases: []
+  - id: skill_ollama
+    name: Ollama
+    category: AI & Automation
+    aliases: []
+  - id: skill_llama_2
+    name: Llama 2
+    category: AI & Automation
+    aliases: []
+  - id: skill_gemini_api
+    name: Gemini API
+    category: AI & Automation
+    aliases: []
+  - id: skill_agentic_tooling
+    name: Agentic Tooling
+    category: AI & Automation
+    aliases: []
+  - id: skill_claude_code
+    name: Claude Code
+    category: AI Coding Tools
+    aliases: [Claude]
+  - id: skill_cursor
+    name: Cursor
+    category: AI Coding Tools
+    aliases: []
+  - id: skill_github_copilot
+    name: GitHub Copilot
+    category: AI Coding Tools
+    aliases: []
+
+  - id: skill_node_js
+    name: Node.js
+    category: Backend & APIs
+    aliases: [Node]
+  - id: skill_nestjs
+    name: NestJS
+    category: Backend & APIs
+    aliases: []
+  - id: skill_express_js
+    name: Express.js
+    category: Backend & APIs
+    aliases: [Express]
+  - id: skill_fastapi
+    name: FastAPI
+    category: Backend & APIs
+    aliases: []
+  - id: skill_rest_apis
+    name: REST APIs
+    category: Backend & APIs
+    aliases: []
+  - id: skill_webhooks
+    name: Webhooks
+    category: Backend & APIs
+    aliases: []
+  - id: skill_rabbitmq
+    name: RabbitMQ
+    category: Backend & APIs
+    aliases: []
+  - id: skill_microservices
+    name: Microservices
+    category: Backend & APIs
+    aliases: []
+  - id: skill_nginx
+    name: Nginx
+    category: Backend & APIs
+    aliases: []
+
+  - id: skill_react_js
+    name: React.js
+    category: Frontend
+    aliases: [React]
+  - id: skill_next_js
+    name: Next.js
+    category: Frontend
+    aliases: []
+  - id: skill_tailwind_css
+    name: Tailwind CSS
+    category: Frontend
+    aliases: []
+  - id: skill_shadcn_ui
+    name: shadcn/ui
+    category: Frontend
+    aliases: []
+  - id: skill_radix_ui
+    name: Radix UI
+    category: Frontend
+    aliases: []
+  - id: skill_chakra_ui
+    name: Chakra UI
+    category: Frontend
+    aliases: []
+  - id: skill_tanstack_query
+    name: TanStack Query
+    category: Frontend
+    aliases: []
+  - id: skill_tanstack_table
+    name: TanStack Table
+    category: Frontend
+    aliases: []
+  - id: skill_htmx
+    name: HTMX
+    category: Frontend
+    aliases: []
+  - id: skill_markdown
+    name: Markdown
+    category: Frontend
+    aliases: []
+  - id: skill_templ
+    name: templ
+    category: Frontend
+    aliases: []
+  - id: skill_http
+    name: HTTP
+    category: Frontend
+    aliases: []
+
+  - id: skill_mongodb
+    name: MongoDB
+    category: Databases
+    aliases: []
+  - id: skill_postgresql
+    name: PostgreSQL
+    category: Databases
+    aliases: [Postgres]
+  - id: skill_redis
+    name: Redis
+    category: Databases
+    aliases: []
+  - id: skill_drizzle_orm
+    name: Drizzle ORM
+    category: Databases
+    aliases: []
+  - id: skill_sqlc
+    name: sqlc
+    category: Databases
+    aliases: []
+  - id: skill_minio
+    name: MinIO
+    category: Storage & Infrastructure
+    aliases: []
+
+  - id: skill_docker
+    name: Docker
+    category: DevOps & Cloud
+    aliases: []
+  - id: skill_docker_compose
+    name: Docker Compose
+    category: DevOps & Cloud
+    aliases: [docker-compose]
+  - id: skill_aws_ec2
+    name: AWS EC2
+    category: DevOps & Cloud
+    aliases: []
+  - id: skill_github_actions
+    name: GitHub Actions
+    category: DevOps & Cloud
+    aliases: []
+  - id: skill_vercel
+    name: Vercel
+    category: DevOps & Cloud
+    aliases: []
+  - id: skill_ci_cd
+    name: CI/CD
+    category: DevOps & Cloud
+    aliases: []
+  - id: skill_prometheus
+    name: Prometheus
+    category: Observability
+    aliases: []
+  - id: skill_grafana
+    name: Grafana
+    category: Observability
+    aliases: []
+
+  - id: skill_oauth2
+    name: OAuth2
+    category: Auth & Security
+    aliases: []
+  - id: skill_jwt
+    name: JWT
+    category: Auth & Security
+    aliases: []
+  - id: skill_rbac
+    name: Role-Based Access Control
+    category: Auth & Security
+    aliases: []
+
+  - id: skill_jest
+    name: Jest
+    category: Testing
+    aliases: []
+  - id: skill_vitest
+    name: Vitest
+    category: Testing
+    aliases: []
+
+  - id: skill_git
+    name: Git
+    category: Tools
+    aliases: []
+  - id: skill_github
+    name: GitHub
+    category: Tools
+    aliases: []
+  - id: skill_postman
+    name: Postman
+    category: Tools
+    aliases: []
+  - id: skill_ffmpeg
+    name: FFmpeg
+    category: Tools
+    aliases: []
+  - id: skill_docxtemplater
+    name: Docxtemplater
+    category: Tools
+    aliases: []
+  - id: skill_google_calendar_api
+    name: Google Calendar API
+    category: Tools
+    aliases: []
+  - id: skill_telegram_bot_api
+    name: Telegram Bot API
+    category: Tools
+    aliases: []
+  - id: skill_cloudinary
+    name: Cloudinary
+    category: Tools
+    aliases: []
+  - id: skill_hls_streaming
+    name: HLS Video Streaming
+    category: Tools
+    aliases: []
+
+experiences:
+  - id: experience_xparth_frontend_intern
+    organization: XParth Technologies
+    role: Frontend Developer Intern
+    location: Bengaluru, India (Remote)
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    source: [swe_resume]
+  - id: experience_pragya_fullstack_intern
+    organization: Pragya Cyber Ltd.
+    role: Full-Stack Developer Intern
+    location: Bengaluru, India
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    source: [automation_resume, swe_resume]
+  - id: experience_hashvault_tech_lead
+    organization: HashVault Cybersecurity Club (BNMIT)
+    role: Tech Lead
+    location: null
+    date_range:
+      start: null
+      end: null
+      precision: month
+      ongoing: true
+    source: [automation_resume, swe_resume, user_review_2026_09_25]
+
+projects:
+  - id: project_eventmcp
+    name: EventMCP
+    title: LLM-Integrated Calendar MCP Server
+    alternate_titles:
+      - LLM Agent Calendar Automation Server
+    url: https://github.com/Rahul-aithal/EventMCP
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    source: [automation_resume, swe_resume]
+  - id: project_telegram_ai_chatbot
+    name: Telegram AI Chatbot
+    title: Telegram AI Chatbot
+    url: https://github.com/Rahul-aithal/python_telegram_chat_bot
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    source: [automation_resume]
+  - id: project_vaultr
+    name: Vaultr
+    title: Secure File Sharing Platform
+    url: https://github.com/Rahul-aithal/vaultr
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    source: [automation_resume, swe_resume]
+  - id: project_inkwell
+    name: InkWell
+    title: Real-Time Collaborative Storytelling Platform
+    url: https://ink-well-client.vercel.app
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    source: [automation_resume, swe_resume]
+  - id: project_thumbpicker
+    name: ThumbPicker
+    title: Video Frame Extraction Web Service
+    url: https://github.com/Rahul-aithal/ThumbPicker
+    date_range:
+      start: "2025"
+      end: "2025"
+      precision: year
+      ongoing: false
+    source: [swe_resume]
+  - id: project_learning_management_system
+    name: Learning Management System
+    title: Full-Featured Learning Management System
+    url: null
+    date_range: null
+    source: [automation_resume, swe_resume]
+
+achievements:
+  - id: achievement_xparth_admin_platform
+    text: >-
+      Contributing to the development of an internal admin platform using
+      Next.js, TypeScript, and Tailwind CSS.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: [skill_next_js, skill_typescript, skill_tailwind_css]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Contributing to the development of an internal admin platform using
+          Next.js, TypeScript, and Tailwind CSS
+  - id: achievement_xparth_reusable_ui
+    text: >-
+      Built reusable UI components including data tables, detail views, and
+      dynamic forms used across the platform.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: [skill_next_js, skill_typescript]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          built reusable UI components including data tables, detail views, and
+          dynamic forms used across the platform
+  - id: achievement_xparth_bulk_import
+    text: >-
+      Engineered data management UI features including a drag-and-drop bulk
+      file import workflow with validation and error handling.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: [skill_next_js, skill_typescript]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Engineered data management UI features including a drag-and-drop bulk
+          file import workflow with validation and error handling
+  - id: achievement_xparth_filtering
+    text: >-
+      Built a reusable filtering system with date range, multi-select, and
+      search components for large datasets.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: [skill_next_js, skill_typescript]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          a reusable filtering system with date range, multi-select, and search
+          components for large datasets
+  - id: achievement_xparth_backend_testing
+    text: Contributed to backend API development and testing.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: [skill_rest_apis]
+    source_excerpts:
+      - source: swe_resume
+        text: Contributed to backend API development and testing
+  - id: achievement_xparth_performance_testing
+    text: >-
+      Conducted performance testing to ensure reliability under high user load.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: []
+    source_excerpts:
+      - source: swe_resume
+        text: conducted performance testing to ensure reliability under high user load
+  - id: achievement_xparth_analytics_integration
+    text: Integrated third-party analytics tooling into the platform.
+    metrics: []
+    date_range:
+      start: "2026-07"
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_xparth_frontend_intern
+    source: [swe_resume]
+    skills: []
+    source_excerpts:
+      - source: swe_resume
+        text: integrated third-party analytics tooling into the platform
+
+  - id: achievement_pragya_backend_portals
+    text: >-
+      Developed and shipped backend APIs, business logic modules, and
+      React-based customer-facing and employee portal UIs for a production B2B
+      SaaS platform using Node.js, NestJS, and MongoDB.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [swe_resume]
+    skills: [skill_node_js, skill_nestjs, skill_mongodb, skill_react_js, skill_rest_apis]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Developed and shipped backend APIs, business logic modules, and
+          React-based customer-facing and employee portal UIs for a production
+          B2B SaaS platform using Node.js, NestJS, and MongoDB
+  - id: achievement_pragya_auth
+    text: >-
+      Implemented OAuth2 authentication and JWT-based session management for
+      employee access control.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [swe_resume]
+    skills: [skill_oauth2, skill_jwt]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Implemented OAuth2 authentication and JWT-based session management
+          for employee access control
+  - id: achievement_pragya_third_party_integrations
+    text: Connected multiple third-party APIs and webhooks.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [automation_resume]
+    skills: [skill_rest_apis, skill_webhooks]
+    source_excerpts:
+      - source: automation_resume
+        text: connected multiple third-party APIs and webhooks
+  - id: achievement_pragya_jest
+    text: Wrote Jest unit tests for core backend modules.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [swe_resume]
+    skills: [skill_jest]
+    source_excerpts:
+      - source: swe_resume
+        text: wrote Jest unit tests for core backend modules
+  - id: achievement_pragya_aws_deployment
+    text: >-
+      Deployed the application on AWS EC2 with Nginx as a reverse proxy;
+      configured server environment, process management, and routing for
+      production traffic.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [automation_resume, swe_resume]
+    skills: [skill_aws_ec2, skill_nginx]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Deployed application on AWS EC2 with Nginx as a reverse proxy;
+          configured server environment, process management, and routing for
+          production traffic
+      - source: swe_resume
+        text: >-
+          Deployed the application on AWS EC2 with Nginx as a reverse proxy;
+          configured server environment, process management, and routing for
+          production traffic
+  - id: achievement_pragya_dynamic_templates
+    text: >-
+      Engineered a structured data management system with dynamic, customizable
+      templates in NestJS.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [swe_resume]
+    skills: [skill_nestjs]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Engineered a structured data management system with dynamic,
+          customizable templates in NestJS
+  - id: achievement_pragya_document_export
+    text: >-
+      Engineered an automated document export pipeline using Docxtemplater with
+      dynamic templates, eliminating manual document preparation (~40% effort
+      reduction) across client deliverables.
+    metrics: ["~40% effort reduction"]
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [automation_resume, swe_resume]
+    skills: [skill_docxtemplater]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Engineered an automated document export pipeline using Docxtemplater
+          with dynamic templates, eliminating manual document preparation (~40%
+          effort reduction) across client deliverables
+      - source: swe_resume
+        text: >-
+          an automated document export pipeline using Docxtemplater, cutting
+          manual document preparation by ~40%
+  - id: achievement_pragya_ai_pipeline
+    text: >-
+      Built a production AI automation pipeline using n8n to replace a manual
+      client data summarization process.
+    metrics: []
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [automation_resume, swe_resume]
+    skills: [skill_n8n, skill_llm_integration]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Built a production AI automation pipeline using n8n to replace a
+          manual client data summarization process
+      - source: swe_resume
+        text: >-
+          Built a production AI automation pipeline using n8n and LLM APIs
+  - id: achievement_pragya_ai_impact
+    text: >-
+      Integrated LLM APIs with structured Prompt Engineering to enforce output
+      formats and a PII-stripping preprocessing layer, reducing post-processing
+      effort by ~60% across 3+ business workflows.
+    metrics: ["~60% post-processing effort reduction", "3+ business workflows"]
+    date_range:
+      start: "2025-02"
+      end: "2026-04"
+      precision: month
+      ongoing: false
+    part_of: experience_pragya_fullstack_intern
+    source: [automation_resume, swe_resume]
+    skills: [skill_llm_integration, skill_prompt_engineering]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          integrated LLM APIs with structured Prompt Engineering to enforce
+          output formats and a PII-stripping preprocessing layer — reducing
+          post-processing effort by ~60% across 3+ business workflows
+      - source: swe_resume
+        text: >-
+          LLM APIs with Prompt Engineering for structured summarization and a
+          PII-stripping layer
+
+  - id: achievement_eventmcp_server
+    text: >-
+      Built a Model Context Protocol (MCP) server in Go that exposes Google
+      Calendar as a callable tool layer for LLM agents.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume, swe_resume]
+    skills: [skill_go, skill_model_context_protocol, skill_google_calendar_api, skill_llm_integration]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Built a production Model Context Protocol (MCP) server in Go that
+          exposes Google Calendar as a callable tool layer for LLM agents
+      - source: swe_resume
+        text: >-
+          Built a Model Context Protocol (MCP) server in Go exposing Google
+          Calendar as a tool layer for LLM agents
+  - id: achievement_eventmcp_gemini_cli
+    text: >-
+      Enabled Gemini CLI to create, list, and delete calendar events through
+      natural language commands via the MCP connector protocol.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume]
+    skills: [skill_model_context_protocol]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          enabling Gemini CLI to create, list, and delete calendar events via
+          natural language commands through the MCP connector protocol
+  - id: achievement_eventmcp_oauth
+    text: Implemented Google OAuth2 with persistent refresh token storage.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume, swe_resume]
+    skills: [skill_oauth2, skill_google_calendar_api]
+    source_excerpts:
+      - source: automation_resume
+        text: Implemented Google OAuth2 with persistent refresh token storage
+      - source: swe_resume
+        text: implemented Google OAuth2 with persistent refresh token storage
+  - id: achievement_eventmcp_releases
+    text: Implemented versioned releases across 3 builds via GitHub Actions CI.
+    metrics: ["3 builds"]
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume]
+    skills: [skill_github_actions, skill_ci_cd]
+    source_excerpts:
+      - source: automation_resume
+        text: versioned releases across 3 builds via GitHub Actions CI
+  - id: achievement_eventmcp_schemas
+    text: Defined full tool schema definitions for the MCP server.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume]
+    skills: [skill_model_context_protocol]
+    source_excerpts:
+      - source: automation_resume
+        text: full tool schema definitions
+  - id: achievement_eventmcp_end_to_end
+    text: >-
+      Demonstrated end-to-end AI infrastructure and agentic tooling built from
+      scratch.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_eventmcp
+    source: [automation_resume]
+    skills: [skill_agentic_tooling]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          demonstrating end-to-end AI infrastructure and agentic tooling from
+          scratch
+
+  - id: achievement_telegram_chatbot
+    text: >-
+      Built a Python-based AI agent chatbot integrating a locally-hosted
+      open-source Llama 2 LLM via Ollama, enabling natural language
+      conversations through Telegram.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_telegram_ai_chatbot
+    source: [automation_resume]
+    skills: [skill_python, skill_ollama, skill_llama_2, skill_telegram_bot_api, skill_llm_integration]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Built a Python-based AI agent chatbot integrating a locally-hosted
+          open-source Llama 2 LLM via Ollama, enabling natural language
+          conversations through Telegram
+  - id: achievement_telegram_operations
+    text: >-
+      Implemented structured logging, error handling, and subprocess-based LLM
+      invocation for the chatbot.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_telegram_ai_chatbot
+    source: [automation_resume]
+    skills: [skill_python, skill_llm_integration]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          implemented structured logging, error handling, and subprocess-based
+          LLM invocation
+
+  - id: achievement_vaultr_platform
+    text: >-
+      Built a full-stack file sharing platform with GitHub OAuth login,
+      configurable expiry dates and download limits, and a real-time dashboard.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_vaultr
+    source: [automation_resume, swe_resume]
+    skills: [skill_oauth2, skill_next_js]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Built a full-stack file sharing platform with GitHub OAuth login,
+          configurable expiry/download limits, and a real-time dashboard
+      - source: swe_resume
+        text: >-
+          Built a full-stack file sharing platform with GitHub OAuth login,
+          configurable expiry dates and download limits, and a real-time
+          dashboard
+  - id: achievement_vaultr_postgres
+    text: Backed Vaultr with PostgreSQL using Drizzle ORM migrations.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_vaultr
+    source: [automation_resume, swe_resume]
+    skills: [skill_postgresql, skill_drizzle_orm]
+    source_excerpts:
+      - source: automation_resume
+        text: architected with PostgreSQL + Drizzle ORM
+      - source: swe_resume
+        text: backed by PostgreSQL with Drizzle ORM migrations
+  - id: achievement_vaultr_minio
+    text: Used MinIO for S3-compatible object storage.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_vaultr
+    source: [automation_resume, swe_resume]
+    skills: [skill_minio]
+    source_excerpts:
+      - source: automation_resume
+        text: MinIO for S3-compatible storage
+      - source: swe_resume
+        text: MinIO for S3-compatible object storage
+  - id: achievement_vaultr_observability
+    text: Set up Prometheus and Grafana observability for Vaultr.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_vaultr
+    source: [automation_resume, swe_resume]
+    skills: [skill_prometheus, skill_grafana]
+    source_excerpts:
+      - source: automation_resume
+        text: Prometheus + Grafana observability
+      - source: swe_resume
+        text: set up Prometheus + Grafana for observability
+  - id: achievement_vaultr_docker
+    text: Containerized Vaultr with Docker.
+    metrics: []
+    date_range:
+      start: "2026"
+      end: "2026"
+      precision: year
+      ongoing: false
+    part_of: project_vaultr
+    source: [automation_resume, swe_resume]
+    skills: [skill_docker]
+    source_excerpts:
+      - source: automation_resume
+        text: Docker containerization
+      - source: swe_resume
+        text: Containerized with Docker
+
+  - id: achievement_inkwell_platform
+    text: >-
+      Architected a full-stack platform with JWT authentication, Markdown
+      editor, and Cloudinary media uploads.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [automation_resume, swe_resume]
+    skills: [skill_jwt, skill_markdown, skill_cloudinary]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Architected a full-stack platform with JWT auth, Markdown editor,
+          Cloudinary media uploads
+      - source: swe_resume
+        text: >-
+          Architected a full-stack platform with JWT authentication, Markdown
+          editor, and Cloudinary media uploads
+  - id: achievement_inkwell_notifications
+    text: >-
+      Extracted notification concerns into a dedicated RabbitMQ-based
+      microservice, decoupling services for independent scalability and
+      reliability.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [automation_resume, swe_resume]
+    skills: [skill_rabbitmq, skill_microservices]
+    source_excerpts:
+      - source: automation_resume
+        text: dedicated RabbitMQ-based notification microservice
+      - source: swe_resume
+        text: >-
+          extracted notification concerns into a dedicated RabbitMQ-based
+          microservice, decoupling services for independent scalability and
+          reliability
+  - id: achievement_inkwell_docker
+    text: Containerized all InkWell services with Docker.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [automation_resume, swe_resume]
+    skills: [skill_docker]
+    source_excerpts:
+      - source: automation_resume
+        text: containerized with Docker
+      - source: swe_resume
+        text: Containerized all services with Docker
+  - id: achievement_inkwell_compose
+    text: Configured Docker Compose for local orchestration.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [swe_resume]
+    skills: [skill_docker_compose]
+    source_excerpts:
+      - source: swe_resume
+        text: configured docker-compose for local orchestration
+  - id: achievement_inkwell_deployment
+    text: Deployed InkWell on Vercel with a CI/CD pipeline.
+    metrics: []
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [automation_resume, swe_resume]
+    skills: [skill_vercel, skill_ci_cd]
+    source_excerpts:
+      - source: automation_resume
+        text: deployed on Vercel with CI/CD pipeline
+      - source: swe_resume
+        text: deployed on Vercel with a CI/CD pipeline
+  - id: achievement_inkwell_reliability
+    text: >-
+      Maintained zero environment-mismatch incidents across development and
+      production.
+    metrics: ["zero environment-mismatch incidents"]
+    date_range:
+      start: "2024"
+      end: "2024"
+      precision: year
+      ongoing: false
+    part_of: project_inkwell
+    source: [swe_resume]
+    skills: [skill_docker, skill_ci_cd]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          zero environment-mismatch incidents across development and production
+
+  - id: achievement_thumbpicker_service
+    text: >-
+      Built a Go web service with HTTP routing, templ-based UI, and FFmpeg
+      integration for video frame extraction.
+    metrics: []
+    date_range:
+      start: "2025"
+      end: "2025"
+      precision: year
+      ongoing: false
+    part_of: project_thumbpicker
+    source: [swe_resume]
+    skills: [skill_go, skill_http, skill_templ, skill_ffmpeg]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Built a Go web service with HTTP routing, templ-based UI, and FFmpeg
+          integration for video frame extraction
+  - id: achievement_thumbpicker_architecture
+    text: >-
+      Architected ThumbPicker with PostgreSQL, sqlc for type-safe query
+      generation, and structured handlers, routers, and database layers.
+    metrics: []
+    date_range:
+      start: "2025"
+      end: "2025"
+      precision: year
+      ongoing: false
+    part_of: project_thumbpicker
+    source: [swe_resume]
+    skills: [skill_postgresql, skill_sqlc, skill_go]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          architected with a PostgreSQL database using sqlc for type-safe query
+          generation and a structured handlers/routers/db layer separation
+  - id: achievement_thumbpicker_concurrency
+    text: >-
+      Implemented concurrent batch frame extraction using Go goroutines,
+      improving processing throughput for multi-timestamp extraction jobs.
+    metrics: []
+    date_range:
+      start: "2025"
+      end: "2025"
+      precision: year
+      ongoing: false
+    part_of: project_thumbpicker
+    source: [swe_resume]
+    skills: [skill_go]
+    source_excerpts:
+      - source: swe_resume
+        text: >-
+          Implemented concurrent batch frame extraction using Go goroutines,
+          improving processing throughput for multi-timestamp extraction jobs
+  - id: achievement_thumbpicker_evolution
+    text: Evolved ThumbPicker from CLI prototype to full web service across 21 commits.
+    metrics: ["21 commits"]
+    date_range:
+      start: "2025"
+      end: "2025"
+      precision: year
+      ongoing: false
+    part_of: project_thumbpicker
+    source: [swe_resume]
+    skills: [skill_go]
+    source_excerpts:
+      - source: swe_resume
+        text: project evolved from CLI prototype to full web service across 21 commits
+
+  - id: achievement_lms_delivery
+    text: >-
+      Independently built a full-featured Learning Management System with HLS
+      video streaming from scratch in under 30 days, with no prior experience
+      in video streaming protocols.
+    metrics: ["under 30 days"]
+    date_range: null
+    part_of: project_learning_management_system
+    source: [automation_resume, swe_resume]
+    skills: [skill_hls_streaming]
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          Independently built a full-featured Learning Management System with
+          HLS video streaming from scratch in under 30 days with no prior
+          experience in video streaming protocols
+      - source: swe_resume
+        text: >-
+          Independently built a full-featured Learning Management System with
+          HLS video streaming from scratch in under 30 days with no prior
+          experience in video streaming protocols
+
+  - id: achievement_hashvault_leadership
+    text: >-
+      Led event infrastructure, CTF challenge design, and execution for offline
+      and online security events as HashVault Tech Lead.
+    metrics: []
+    date_range:
+      start: null
+      end: null
+      precision: month
+      ongoing: true
+    part_of: experience_hashvault_tech_lead
+    source: [automation_resume, swe_resume, user_review_2026_09_25]
+    skills: []
+    source_excerpts:
+      - source: automation_resume
+        text: >-
+          led event infrastructure, CTF challenge design, and execution for
+          offline and online security events
+      - source: swe_resume
+        text: >-
+          led event infrastructure, CTF challenge design, and execution for
+          offline and online security events
+
+education:
+  - id: education_bnmit_be_cse
+    institution: BNMIT
+    location: Bengaluru
+    credential: B.E. Computer Science & Engineering
+    date_range:
+      start: null
+      end: "2027"
+      precision: year
+      expected: true
+      ongoing: false
+    cgpa: 8.9/10.0
+    coursework:
+      - Agentic AI
+      - Data Structures & Algorithms
+      - Machine Learning
+      - Database Systems
+      - Computer Networks
+      - Operating Systems
+    source: [automation_resume, swe_resume]
+
+certifications:
+  - id: certification_mongodb_developer
+    name: MongoDB Certified Developer
+    issuer: MongoDB University
+    issued_on: "2025-03-03"
+    date_range:
+      start: "2025-03"
+      end: "2025-03"
+      precision: month
+      ongoing: false
+    source: [automation_resume, swe_resume, user_review_2026_09_25]
+
+soft_skills:
+  - id: soft_builder_mindset
+    name: Builder Mindset
+    source: [automation_resume]
+    text: >-
+      consistently ships end-to-end solutions independently, from identifying
+      the problem to deploying the fix
+  - id: soft_fast_learner
+    name: Fast Learner
+    source: [automation_resume, swe_resume]
+    variants:
+      - source: automation_resume
+        text: >-
+          independently acquired new technical domains (MCP protocol, Go, LLM
+          tooling, HTMX) and shipped working projects within days
+      - source: swe_resume
+        text: >-
+          independently acquired new technical domains (Next.js, TanStack, LLM
+          tooling, Go, microservices) and shipped working projects within days
+  - id: soft_ownership_driven
+    name: Ownership-Driven
+    source: [automation_resume, swe_resume, user_review_2026_09_25]
+    text: >-
+      takes full responsibility from problem identification to production
+      delivery; shipped multiple production features solo at Pragya Cyber Ltd.
+  - id: soft_deadline_oriented
+    name: Deadline-Oriented
+    source: [swe_resume]
+    text: >-
+      consistently delivered ahead of schedule across internship sprints and
+      personal projects under real-time constraints
+  - id: soft_collaborative
+    name: Collaborative
+    source: [automation_resume, swe_resume, user_review_2026_09_25]
+    text: >-
+      led a technical team at HashVault Cybersecurity Club, coordinating across
+      event planning, infrastructure, and challenge design; works
+      collaboratively with the team at XParth Technologies
+
+resolved_conflicts: [C-001, C-002, C-003, C-004, C-005, C-006, C-007, C-008]
+
+pending_conflicts: []
+
+review_gaps:
+  - id: gap_hashvault_start_date
+    description: HashVault Tech Lead is ongoing, but the start month is not yet known.
+  - id: gap_lms_dates
+    description: The Learning Management System is historical, but its exact dates are not yet known.
