@@ -15,7 +15,6 @@ from typing import Any
 
 import yaml
 
-
 SELECTION_POLICY_VERSION = 1
 
 
@@ -45,7 +44,9 @@ def _match_pattern(term: str) -> re.Pattern[str]:
     return re.compile(rf"(?<!\w){re.escape(term)}(?!\w)", re.IGNORECASE)
 
 
-def find_matched_skills(profile: dict[str, Any], job_description: str) -> list[dict[str, Any]]:
+def find_matched_skills(
+    profile: dict[str, Any], job_description: str
+) -> list[dict[str, Any]]:
     """Return skills whose canonical name or alias occurs in the description."""
     matches: list[dict[str, Any]] = []
     for skill in profile["skills"]:
@@ -184,7 +185,10 @@ def build_tailoring_plan(
             achievements_by_parent[achievement["part_of"]].append(achievement["id"])
 
     selected_parents: list[dict[str, Any]] = []
-    for kind, nodes in (("experience", profile["experiences"]), ("project", profile["projects"])):
+    for kind, nodes in (
+        ("experience", profile["experiences"]),
+        ("project", profile["projects"]),
+    ):
         for node in nodes:
             if node["id"] in achievements_by_parent:
                 selected_parents.append(
@@ -202,14 +206,18 @@ def build_tailoring_plan(
 
     supporting_skill_ids = sorted(selected_skill_ids - matched_skill_ids)
     audit = {
-        "all_selected_achievements_exist": all(item in achievements for item in selected_ids),
+        "all_selected_achievements_exist": all(
+            item in achievements for item in selected_ids
+        ),
         "all_selected_parents_exist": all(
             item["id"] in parents for item in selected_parents
         ),
         "every_selected_achievement_has_source_excerpt": all(
             achievement.get("source_excerpts") for achievement in selected_achievements
         ),
-        "every_selected_skill_resolves": all(item in skills for item in selected_skill_ids),
+        "every_selected_skill_resolves": all(
+            item in skills for item in selected_skill_ids
+        ),
         "every_selected_achievement_directly_matches_a_target_skill": all(
             set(achievement["skills"]) & matched_skill_ids
             for achievement in selected_achievements
@@ -331,7 +339,9 @@ def render_plan_markdown(plan: dict[str, Any], profile: dict[str, Any]) -> str:
         ]
     )
     for row in plan["ranking"]:
-        matches = ", ".join(skills[item]["name"] for item in row["direct_skill_matches"])
+        matches = ", ".join(
+            skills[item]["name"] for item in row["direct_skill_matches"]
+        )
         lines.append(
             f"- `{row['achievement_id']}` — score {row['score']}; matches: {matches}"
         )

@@ -1,6 +1,6 @@
 [project]
 name = "resume-god"
-version = "0.1.0"
+version = "0.2.0"
 description = "Profile-driven resume tooling"
 requires-python = ">=3.12"
 dependencies = [

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
+from .render import render_resume_html, render_resume_markdown
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -24,6 +25,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-achievements", type=int, default=10)
     parser.add_argument("--json-output", type=Path, help="Write the machine-readable plan")
     parser.add_argument("--output", type=Path, help="Write the Markdown plan")
+    parser.add_argument(
+        "--resume-output",
+        type=Path,
+        help="Write the final Markdown resume generated from the passing plan",
+    )
+    parser.add_argument(
+        "--resume-html-output",
+        type=Path,
+        help="Write a self-contained, print-ready HTML resume",
+    )
+    parser.add_argument(
+        "--summary",
+        help="Optional user-reviewed summary to use instead of the deterministic default",
+    )
     return parser
 
 
@@ -58,8 +73,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(markdown, encoding="utf-8")
-    else:
+    elif args.resume_output is None and args.resume_html_output is None:
         print(markdown, end="")
+
+    if args.resume_output is not None or args.resume_html_output is not None:
+        resume_markdown = render_resume_markdown(
+            plan,
+            profile,
+            summary=args.summary,
+        )
+        if args.resume_output is not None:
+            args.resume_output.parent.mkdir(parents=True, exist_ok=True)
+            args.resume_output.write_text(resume_markdown, encoding="utf-8")
+        if args.resume_html_output is not None:
+            resume_html = render_resume_html(
+                plan,
+                profile,
+                summary=args.summary,
+            )
+            args.resume_html_output.parent.mkdir(parents=True, exist_ok=True)
+            args.resume_html_output.write_text(resume_html, encoding="utf-8")
 
     return 0 if all(plan["audit"].values()) else 1
 
