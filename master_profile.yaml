@@ -1253,6 +1253,4 @@ resolved_conflicts: [C-001, C-002, C-003, C-004, C-005, C-006, C-007, C-008]
 
 pending_conflicts: []
 
-review_gaps:
-  - id: gap_lms_dates
-    description: The Learning Management System is historical, but its exact dates are not yet known.
+review_gaps: []

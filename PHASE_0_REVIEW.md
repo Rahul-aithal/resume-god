@@ -78,16 +78,19 @@ unchanged.
   its start month. On **2026-10-01**, Rahul supplied that month: the role runs
   from **October 2024 to the present**, represented as `start: 2024-10`,
   `end: null`, and `ongoing: true`.
-- The Learning Management System is historical and years old, but exact dates
-  remain unknown. Its date range remains null rather than being inferred.
+- The Learning Management System is historical and years old. Its exact dates
+  remain unknown and are intentionally not inferred. Rahul confirmed on
+  **2026-10-01** to leave its dates unrecorded because the work lasted one
+  month at most; the source-backed achievement already records **under 30
+  days**.
 - MongoDB Certified Developer was issued on **2025-03-03**. The normalized
   certification month is **2025-03**.
 
 ## Remaining review gaps
 
-This is a date gap, not an unresolved wording conflict:
-
-- `gap_lms_dates`
+None. The Learning Management System date remains intentionally unrecorded,
+but its reviewed duration is bounded at one month and is no longer treated as a
+pending review gap.
 
 ## Acceptance checks
 

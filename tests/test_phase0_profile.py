@@ -53,6 +53,7 @@ class MasterProfileTests(unittest.TestCase):
         self.assertEqual(self.profile["status"], "user_reviewed")
         self.assertEqual(self.profile["version"], 1)
         self.assertEqual(self.profile["pending_conflicts"], [])
+        self.assertEqual(self.profile["review_gaps"], [])
         self.assertEqual(self.profile["metadata"]["review_completed_on"], "2026-09-25")
 
     def test_source_files_exist(self):
@@ -178,6 +179,13 @@ class MasterProfileTests(unittest.TestCase):
         mongodb = self.profile["certifications"][0]
         self.assertEqual(mongodb["issued_on"], "2025-03-03")
         self.assertEqual(mongodb["date_range"]["start"], "2025-03")
+
+        lms = next(
+            item
+            for item in self.profile["projects"]
+            if item["id"] == "project_learning_management_system"
+        )
+        self.assertIsNone(lms["date_range"])
 
     def test_rejected_vaultr_release_count_is_not_present(self):
         achievement_text = " ".join(
