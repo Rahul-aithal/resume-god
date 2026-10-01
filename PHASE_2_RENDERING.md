@@ -38,10 +38,10 @@ resume together:
   --job-description-file path/to/job.txt \
   --target-title "AI Automation Engineer" \
   --max-achievements 7 \
-  --output output/ai-automation-plan.md \
-  --json-output output/ai-automation-plan.json \
-  --resume-output output/rahul-ai-automation.md \
-  --resume-html-output output/rahul-ai-automation.html
+  --output outputs/ai-automation-plan.md \
+  --json-output outputs/ai-automation-plan.json \
+  --resume-output outputs/rahul-ai-automation.md \
+  --resume-html-output outputs/rahul-ai-automation.html
 ```
 
 Use a reviewed role-specific summary:
@@ -51,12 +51,12 @@ Use a reviewed role-specific summary:
   --job-description-file path/to/job.txt \
   --target-title "AI Automation Engineer" \
   --max-achievements 7 \
-  --resume-output output/rahul-ai-automation.md \
-  --resume-html-output output/rahul-ai-automation.html \
+  --resume-output outputs/rahul-ai-automation.md \
+  --resume-html-output outputs/rahul-ai-automation.html \
   --summary "Production-focused AI automation engineer with reviewed experience shipping LLM pipelines and agent tooling."
 ```
 
-Review `output/ai-automation-plan.md` before sending the resume. It records the
+Review `outputs/ai-automation-plan.md` before sending the resume. It records the
 direct job-description skill matches, selected evidence, supporting skills,
 ranking rationale, and audit results behind the final artifact.
 

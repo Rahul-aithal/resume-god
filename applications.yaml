@@ -1,0 +1,24 @@
+version: 1
+defaults:
+  max_achievements: 7
+
+applications:
+  - id: megaaopes-software-developer
+    company: MegaaOpes Solutions LLC
+    target_title: Software Developer
+    job_description_file: fixtures/jds/jd-1.txt
+
+  - id: delta-capita-full-stack-developer
+    company: Delta Capita
+    target_title: Full Stack Developer
+    job_description_file: fixtures/jds/jd-2.txt
+
+  - id: abstrabit-software-engineer-i
+    company: Abstrabit
+    target_title: Software Engineer I (SDE1)
+    job_description_file: fixtures/jds/jd-3.txt
+
+  - id: rox-product-engineer
+    company: Rox
+    target_title: Product Engineer
+    job_description_file: fixtures/jds/jd-4.txt

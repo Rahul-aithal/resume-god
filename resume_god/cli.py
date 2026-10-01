@@ -12,7 +12,7 @@ from .render import render_resume_html, render_resume_markdown
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Build a Phase 1 resume tailoring plan")
+    parser = argparse.ArgumentParser(description="Build audited resume artifacts")
     parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
     description = parser.add_mutually_exclusive_group(required=True)
     description.add_argument("--job-description", help="Job description text")

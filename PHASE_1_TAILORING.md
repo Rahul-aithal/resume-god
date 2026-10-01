@@ -59,8 +59,8 @@ Write both reviewable and machine-readable artifacts:
   --job-description-file path/to/job.txt \
   --target-title "AI Automation Engineer" \
   --max-achievements 8 \
-  --output output/ai-automation-plan.md \
-  --json-output output/ai-automation-plan.json
+  --output outputs/ai-automation-plan.md \
+  --json-output outputs/ai-automation-plan.json
 ```
 
 The command returns a non-zero status if any plan audit check fails.
