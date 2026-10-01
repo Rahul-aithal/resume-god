@@ -74,8 +74,10 @@ unchanged.
 
 ## Additional user-reviewed facts
 
-- HashVault Tech Lead is **ongoing**. The start month remains unknown, so the
-  date range has `start: null`, `end: null`, and `ongoing: true`.
+- HashVault Tech Lead is **ongoing**. The initial review could not establish
+  its start month. On **2026-10-01**, Rahul supplied that month: the role runs
+  from **October 2024 to the present**, represented as `start: 2024-10`,
+  `end: null`, and `ongoing: true`.
 - The Learning Management System is historical and years old, but exact dates
   remain unknown. Its date range remains null rather than being inferred.
 - MongoDB Certified Developer was issued on **2025-03-03**. The normalized
@@ -83,9 +85,8 @@ unchanged.
 
 ## Remaining review gaps
 
-These are date gaps, not unresolved wording conflicts:
+This is a date gap, not an unresolved wording conflict:
 
-- `gap_hashvault_start_date`
 - `gap_lms_dates`
 
 ## Acceptance checks

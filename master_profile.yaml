@@ -21,6 +21,11 @@ sources:
     resume_version: User review decisions
     format: markdown
     reviewed_on: "2026-09-25"
+  - id: user_review_2026_10_01
+    path: PHASE_0_REVIEW.md
+    resume_version: Supplemental user review decisions
+    format: markdown
+    reviewed_on: "2026-10-01"
 
 contact:
   name: Rahul Aithal
@@ -358,11 +363,11 @@ experiences:
     role: Tech Lead
     location: null
     date_range:
-      start: null
+      start: "2024-10"
       end: null
       precision: month
       ongoing: true
-    source: [automation_resume, swe_resume, user_review_2026_09_25]
+    source: [automation_resume, swe_resume, user_review_2026_09_25, user_review_2026_10_01]
 
 projects:
   - id: project_eventmcp
@@ -1155,12 +1160,12 @@ achievements:
       and online security events as HashVault Tech Lead.
     metrics: []
     date_range:
-      start: null
+      start: "2024-10"
       end: null
       precision: month
       ongoing: true
     part_of: experience_hashvault_tech_lead
-    source: [automation_resume, swe_resume, user_review_2026_09_25]
+    source: [automation_resume, swe_resume, user_review_2026_09_25, user_review_2026_10_01]
     skills: []
     source_excerpts:
       - source: automation_resume
@@ -1249,7 +1254,5 @@ resolved_conflicts: [C-001, C-002, C-003, C-004, C-005, C-006, C-007, C-008]
 pending_conflicts: []
 
 review_gaps:
-  - id: gap_hashvault_start_date
-    description: HashVault Tech Lead is ongoing, but the start month is not yet known.
   - id: gap_lms_dates
     description: The Learning Management System is historical, but its exact dates are not yet known.

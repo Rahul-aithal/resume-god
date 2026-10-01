@@ -172,7 +172,8 @@ class MasterProfileTests(unittest.TestCase):
             if item["id"] == "experience_hashvault_tech_lead"
         )
         self.assertTrue(hashvault["date_range"]["ongoing"])
-        self.assertIsNone(hashvault["date_range"]["start"])
+        self.assertEqual(hashvault["date_range"]["start"], "2024-10")
+        self.assertIn("user_review_2026_10_01", hashvault["source"])
 
         mongodb = self.profile["certifications"][0]
         self.assertEqual(mongodb["issued_on"], "2025-03-03")
