@@ -140,6 +140,13 @@ class ProfileGraph:
             if score > 0
         ]
 
+    def similarity(self, query: str, achievement_id: str) -> float:
+        if achievement_id not in self.embeddings:
+            raise ValueError(f"Unknown achievement id: {achievement_id}")
+        return _cosine(
+            self._query_vector(query), self.embeddings[achievement_id].values
+        )
+
     def expand_skills(self, skill_id: str, *, hops: int = 2) -> list[dict[str, Any]]:
         if skill_id not in self.skills:
             raise ValueError(f"Unknown skill id: {skill_id}")

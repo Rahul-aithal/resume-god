@@ -228,7 +228,10 @@ def _unknown_skills(
             if value not in values:
                 values.append(value)
     for value in _EXTRA_UNKNOWN:
-        if value.casefold() in job_description.casefold() and value not in values:
+        if (
+            re.search(rf"(?<!\w){re.escape(value)}(?!\w)", job_description, re.IGNORECASE)
+            and value not in values
+        ):
             values.append(value)
     if "RESTful APIs" in values and "RESTful API" in values:
         values.remove("RESTful API")

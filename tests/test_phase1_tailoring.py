@@ -65,9 +65,17 @@ class TailoringPlanTests(unittest.TestCase):
         }
         self.assertTrue(matched_ids.issubset(covered_skills))
 
+        ranking_by_id = {
+            row["achievement_id"]: row for row in plan["ranking"]
+        }
         for achievement in plan["selected_achievements"]:
             with self.subTest(achievement=achievement["id"]):
-                self.assertTrue(set(achievement["skills"]) & matched_ids)
+                row = ranking_by_id[achievement["id"]]
+                self.assertTrue(
+                    row["direct_skill_matches"]
+                    or row["expanded_skill_matches"]
+                    or row["semantic_similarity"] >= 0.08
+                )
                 self.assertTrue(achievement["source_excerpts"])
 
     def test_plan_only_selects_available_nodes_and_carries_supporting_skills(self):

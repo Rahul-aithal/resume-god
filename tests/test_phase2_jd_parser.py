@@ -76,8 +76,18 @@ class JDParserTests(unittest.TestCase):
         parsed = parse_job_description(self.profile, self.read_jd(1))
         unknown = {row["name"] for row in parsed["unknown_skills"]}
         self.assertIn("MySQL", unknown)
-        self.assertIn("Java", unknown)
         self.assertIn("RESTful APIs", unknown)
+
+        explicit = parse_job_description(
+            self.profile,
+            "Required: Java, JavaScript, MySQL. Nice to have: Kubernetes.",
+            target_title="Software Engineer",
+        )
+        explicit_unknown = {
+            row["name"] for row in explicit["unknown_skills"]
+        }
+        self.assertIn("Java", explicit_unknown)
+        self.assertIn("Kubernetes", explicit_unknown)
 
     def test_provider_output_is_normalized_and_unknowns_survive(self):
         provider = FakeProvider(
