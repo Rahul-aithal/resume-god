@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
 from .render import render_resume_html, render_resume_markdown
+from .rewrite import rewrite_plan
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -39,6 +40,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--summary",
         help="Optional user-reviewed summary to use instead of the deterministic default",
     )
+    parser.add_argument(
+        "--rewrite-provider",
+        choices=("deterministic", "glm", "gemini"),
+        default="deterministic",
+        help="Constrained rewrite provider; deterministic means reviewed originals",
+    )
+    parser.add_argument(
+        "--page-budget-chars",
+        type=int,
+        default=3200,
+        help="Approximate one-page budget used before final PDF trimming",
+    )
     return parser
 
 
@@ -60,6 +73,18 @@ def main(argv: list[str] | None = None) -> int:
         job_description,
         target_title=args.target_title,
         max_achievements=args.max_achievements,
+    )
+    rewrite_provider = None
+    if args.rewrite_provider != "deterministic":
+        from .llm import make_provider
+
+        rewrite_provider = make_provider(args.rewrite_provider)
+    plan = rewrite_plan(
+        plan,
+        profile,
+        provider=rewrite_provider,
+        summary=args.summary,
+        page_budget_chars=args.page_budget_chars,
     )
 
     if args.json_output is not None:

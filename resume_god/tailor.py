@@ -597,6 +597,32 @@ def render_plan_markdown(plan: dict[str, Any], profile: dict[str, Any]) -> str:
     else:
         lines.append("- **Matched but unevidenced:** None")
 
+    if "assembly" in plan:
+        assembly = plan["assembly"]
+        lines.extend(
+            [
+                "",
+                "## Assembly and constrained rewriting",
+                "",
+                f"- Page budget: **{assembly['page_budget_chars']} characters**",
+                f"- Retained achievements: **{len(assembly['retained_achievement_ids'])}**",
+                f"- Trimmed achievements: **{len(assembly['trimmed_achievement_ids'])}**",
+                "",
+            ]
+        )
+        if plan.get("rewrites"):
+            summary = plan.get("rewrite_summary", {})
+            lines.extend(
+                [
+                    f"- Used validated rewrites: **{summary.get('used_rewrite_count', 0)}**",
+                    f"- Fallbacks to reviewed originals: **{summary.get('fallback_count', 0)}**",
+                    "",
+                ]
+            )
+            for achievement_id, record in plan["rewrites"].items():
+                status = "used" if record["used_rewrite"] else "fallback original"
+                lines.append(f"- `{achievement_id}` — {status}")
+
     lines.extend(["", "## Selection audit", ""])
     for check, passed in plan["audit"].items():
         lines.append(f"- {'PASS' if passed else 'FAIL'}: {check.replace('_', ' ')}")

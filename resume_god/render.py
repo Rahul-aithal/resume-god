@@ -108,6 +108,21 @@ def _validate_resume_inputs(
                 + ", ".join(unknown_achievement_refs)
             )
 
+    rewrite_audit = plan.get("rewrite_audit")
+    if rewrite_audit is not None and not all(rewrite_audit.values()):
+        raise ValueError("Cannot render a plan with failed rewrite audit checks")
+    for achievement_id, record in plan.get("rewrites", {}).items():
+        if achievement_id not in achievements:
+            raise ValueError(f"Rewrite references unknown achievement: {achievement_id}")
+        if record.get("source_text") != achievements[achievement_id]["text"]:
+            raise ValueError(
+                f"Rewrite source differs from reviewed profile: {achievement_id}"
+            )
+        if record.get("used_rewrite") and not record.get("validation_passed"):
+            raise ValueError(
+                f"Used rewrite failed grounding validation: {achievement_id}"
+            )
+
 
 def _format_month(value: str) -> str:
     year, month = value.split("-", 1)
@@ -249,6 +264,18 @@ def _default_summary(
     )
 
 
+def _bullet_text(
+    plan: dict[str, Any],
+    achievements: dict[str, dict[str, Any]],
+    achievement_id: str,
+) -> str:
+    """Return a validated rewrite, or the unchanged reviewed source bullet."""
+    record = plan.get("rewrites", {}).get(achievement_id)
+    if record and record.get("used_rewrite"):
+        return str(record["rewritten_text"])
+    return achievements[achievement_id]["text"]
+
+
 def _resume_sections(
     plan: dict[str, Any],
     profile: dict[str, Any],
@@ -263,7 +290,9 @@ def _resume_sections(
         for node in profile[section]
     }
     selected_parents = []
-    for reference in plan["selected_parents"]:
+    for reference in plan.get("assembly", {}).get(
+        "selected_parents", plan["selected_parents"]
+    ):
         parent = parents[reference["id"]]
         selected_parents.append(
             {
@@ -271,7 +300,7 @@ def _resume_sections(
                 "node": parent,
                 "date_range": _format_date_range(parent.get("date_range")),
                 "achievements": [
-                    achievements[item]["text"]
+                    _bullet_text(plan, achievements, item)
                     for item in reference["achievement_ids"]
                 ],
             }
