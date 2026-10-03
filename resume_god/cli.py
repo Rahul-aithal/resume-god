@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import __version__
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
 from .render import render_resume_html, render_resume_markdown
 from .rewrite import rewrite_plan
@@ -15,6 +16,9 @@ from .typst import write_resume_pdf
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build audited resume artifacts")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
+    )
     parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
     description = parser.add_mutually_exclusive_group(required=True)
     description.add_argument("--job-description", help="Job description text")
@@ -42,6 +46,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional user-reviewed summary to use instead of the deterministic default",
     )
     parser.add_argument(
+        "--parser-provider",
+        choices=("deterministic", "glm", "gemini"),
+        default="deterministic",
+        help="JD parsing provider; deterministic runs fully offline",
+    )
+    parser.add_argument(
         "--rewrite-provider",
         choices=("deterministic", "glm", "gemini"),
         default="deterministic",
@@ -61,6 +71,9 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="resume-god tailor",
         description="Build a one-page Typst PDF and audited match report",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument("job_description_file", type=Path)
     parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
@@ -91,6 +104,11 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--summary", help="Optional user-reviewed summary")
     parser.add_argument(
+        "--parser-provider",
+        choices=("deterministic", "glm", "gemini"),
+        default="deterministic",
+    )
+    parser.add_argument(
         "--rewrite-provider",
         choices=("deterministic", "glm", "gemini"),
         default="deterministic",
@@ -105,19 +123,27 @@ def _tailor_main(argv: list[str]) -> int:
     job_description = args.job_description_file.read_text(encoding="utf-8")
     profile = load_profile(args.profile)
 
-    target_title = args.target_title
-    if target_title is None:
-        from .jd_parser import parse_job_description
+    from .jd_parser import parse_job_description
 
-        target_title = parse_job_description(
-            profile, job_description
-        )["role_title"]
+    parser_provider = None
+    if args.parser_provider != "deterministic":
+        from .llm import make_provider
+
+        parser_provider = make_provider(args.parser_provider)
+    parsed = parse_job_description(
+        profile,
+        job_description,
+        provider=parser_provider,
+        target_title=args.target_title,
+    )
+    target_title = args.target_title or parsed["role_title"]
 
     plan = build_tailoring_plan(
         profile,
         job_description,
         target_title=target_title,
         max_achievements=args.max_achievements,
+        parsed_job_description=parsed,
     )
     rewrite_provider = None
     if args.rewrite_provider != "deterministic":
@@ -177,6 +203,7 @@ def _tailor_main(argv: list[str]) -> int:
     print(json_path.resolve())
     return 0 if pdf["audit_passed"] else 1
 
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments and arguments[0] == "tailor":
@@ -194,11 +221,25 @@ def main(argv: list[str] | None = None) -> int:
         job_description = args.job_description
 
     profile = load_profile(args.profile)
+    from .jd_parser import parse_job_description
+
+    parser_provider = None
+    if args.parser_provider != "deterministic":
+        from .llm import make_provider
+
+        parser_provider = make_provider(args.parser_provider)
+    parsed = parse_job_description(
+        profile,
+        job_description,
+        provider=parser_provider,
+        target_title=args.target_title,
+    )
     plan = build_tailoring_plan(
         profile,
         job_description,
         target_title=args.target_title,
         max_achievements=args.max_achievements,
+        parsed_job_description=parsed,
     )
     rewrite_provider = None
     if args.rewrite_provider != "deterministic":

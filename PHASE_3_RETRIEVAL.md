@@ -43,12 +43,12 @@ Unknown skills remain in the gap report and are never rendered as skills.
 ## Usage
 
 ```bash
-uv run python -m resume_god \\
-  --profile master_profile.yaml \\
-  --job-description-file fixtures/jds/jd-1.txt \\
-  --target-title "Software Developer" \\
-  --max-achievements 7 \\
-  --output outputs/jd-1-plan.md \\
+uv run python -m resume_god \
+  --profile master_profile.yaml \
+  --job-description-file fixtures/jds/jd-1.txt \
+  --target-title "Software Developer" \
+  --max-achievements 7 \
+  --output outputs/jd-1-plan.md \
   --json-output outputs/jd-1-plan.json
 ```
 

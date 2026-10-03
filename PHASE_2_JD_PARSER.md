@@ -37,14 +37,14 @@ into a reviewed profile skill.
 ## Usage
 
 ```bash
-uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \\
-  --profile master_profile.yaml \\
+uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \
+  --profile master_profile.yaml \
   --json-output outputs/jd-1.json
 
-uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \\
-  --provider glm \\
+uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \
+  --provider glm \
   --target-title "Software Developer"
 
-uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \\
+uv run python -m resume_god.jd_parser fixtures/jds/jd-1.txt \
   --provider gemini
 ```

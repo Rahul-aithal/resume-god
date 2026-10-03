@@ -315,12 +315,12 @@ def load_into_neo4j(
             session.run(
                 """
                 CREATE VECTOR INDEX achievement_embedding IF NOT EXISTS
-                FOR (a:ProfileGraphItem:Achievement)
+                FOR (a:Achievement)
                 ON (a.embedding)
                 OPTIONS {
                   indexConfig: {
                     `vector.dimensions`: $dimensions,
-                    `vector.similarity`: 'cosine'
+                    `vector.similarity_function`: 'cosine'
                   }
                 }
                 """,
@@ -398,10 +398,11 @@ def _print_json(value: Any) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Load and query the resume graph")
-    parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
+    parser.add_argument("--profile", type=Path)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     load_parser = subparsers.add_parser("load", help="Load the profile into Neo4j")
+    load_parser.add_argument("--profile", type=Path)
     load_parser.add_argument("--uri", default=os.environ.get("RESUME_GOD_NEO4J_URI"))
     load_parser.add_argument(
         "--user", default=os.environ.get("RESUME_GOD_NEO4J_USER", "neo4j")
@@ -414,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
     load_parser.add_argument("--graph-id", default="resume-god")
 
     query_parser = subparsers.add_parser("query", help="Run offline sample queries")
+    query_parser.add_argument("--profile", type=Path)
     query_parser.add_argument("--skill", help="Canonical skill id, name, or alias")
     query_parser.add_argument("--project", help="Project id")
     query_parser.add_argument("--search", help="Semantic text query")
@@ -421,7 +423,8 @@ def main(argv: list[str] | None = None) -> int:
     query_parser.add_argument("--limit", type=int, default=5)
 
     args = parser.parse_args(argv)
-    graph = ProfileGraph(load_profile(args.profile))
+    profile_path = args.profile or Path("master_profile.yaml")
+    graph = ProfileGraph(load_profile(profile_path))
 
     if args.command == "load":
         if not args.uri or not args.password:

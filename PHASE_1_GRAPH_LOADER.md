@@ -28,10 +28,10 @@ truth; deleting the Neo4j volume never loses resume facts.
 ```bash
 docker compose up -d neo4j
 
-uv run python -m resume_god.graph load \\
-  --profile master_profile.yaml \\
-  --uri bolt://localhost:7687 \\
-  --user neo4j \\
+uv run python -m resume_god.graph load \
+  --profile master_profile.yaml \
+  --uri bolt://localhost:7687 \
+  --user neo4j \
   --password resume-god-local
 ```
 
@@ -41,9 +41,9 @@ duplicate nodes or relationships.
 ## Offline sample queries
 
 ```bash
-uv run python -m resume_god.graph query \\
-  --skill Go \\
-  --project project_eventmcp \\
-  --search "LLM agent calendar tool" \\
+uv run python -m resume_god.graph query \
+  --skill Go \
+  --project project_eventmcp \
+  --search "LLM agent calendar tool" \
   --limit 5
 ```

@@ -2,33 +2,82 @@
 
 Profile-driven resume tooling for Rahul Aithal.
 
-The project keeps resume generation auditable:
+Resume God turns a reviewed master profile and a job description into:
 
-1. **Phase 0** normalizes and user-reviews the master profile.
-2. **Phase 1** selects relevant, source-backed evidence for a target job.
-3. **Phase 2** renders the selection as Markdown and printable HTML.
-4. **Phase 3** builds multiple audited application packets from one manifest.
+- a one-page, ATS-friendly Typst PDF resume;
+- a machine-readable tailoring plan;
+- a readable match report with scores, evidence, rewrite decisions, and gaps.
+
+The core safety rule is unchanged: the system may select and lightly reword
+only facts present in `master_profile.yaml`. It must never invent skills,
+technologies, numbers, employers, or dates.
+
+## Original phase status
+
+| Original phase | Status | Documentation |
+|---|---|---|
+| Phase 0 — Master profile | Complete | `PHASE_0_REVIEW.md` |
+| Phase 1 — Graph schema and loader | Complete | `PHASE_1_GRAPH_LOADER.md` |
+| Phase 2 — JD parser and normalization | Complete | `PHASE_2_JD_PARSER.md` |
+| Phase 3 — Retrieval, scoring, gaps | Complete | `PHASE_3_RETRIEVAL.md` |
+| Phase 4 — Assembly and constrained rewrite | Complete | `PHASE_4_REWRITE.md` |
+| Phase 5 — Typst render and CLI | Complete | `PHASE_5_RENDER_CLI.md` |
+
+The repository also contains working convenience layers:
+
+- `PHASE_1_TAILORING.md` describes the deterministic selection API.
+- `PHASE_2_RENDERING.md` describes safe Markdown/HTML rendering.
+- `PHASE_3_APPLICATIONS.md` describes manifest-driven application packets.
 
 ## Quick start
 
+Install Python dependencies and the local Typst binary:
+
 ```bash
 uv sync
-
-uv run python -m resume_god \
-  --profile master_profile.yaml \
-  --job-description-file path/to/job.txt \
-  --target-title "AI Automation Engineer" \
-  --max-achievements 7 \
-  --output outputs/ai-automation-plan.md \
-  --json-output outputs/ai-automation-plan.json \
-  --resume-output outputs/rahul-ai-automation.md \
-  --resume-html-output outputs/rahul-ai-automation.html
+./scripts/install-typst.sh
 ```
 
-Review the tailoring plan first, then open the HTML resume in a browser and use
-the browser's **Print → Save as PDF** action.
+Generate a one-page PDF, match report, and machine-readable plan:
 
-Build every application listed in `applications.yaml`:
+```bash
+resume-god tailor path/to/job.txt \
+  --target-title "Software Developer" \
+  --out outputs/software-developer/resume.pdf
+```
+
+If `--target-title` is omitted, the JD parser derives it from the description.
+
+The command writes:
+
+```text
+outputs/software-developer/resume.pdf
+outputs/software-developer/resume-report.md
+outputs/software-developer/resume-plan.json
+```
+
+The equivalent module invocation is:
+
+```bash
+uv run python -m resume_god.cli tailor path/to/job.txt \
+  --target-title "Software Developer" \
+  --out outputs/software-developer/resume.pdf
+```
+
+## LLM providers
+
+The offline deterministic path needs no API key.
+
+- JD parsing: `--parser-provider glm` or `--parser-provider gemini`
+- Bullet rewriting: `--rewrite-provider glm` or `--rewrite-provider gemini`
+
+Set `GLM_API_KEY` or `GEMINI_API_KEY`. Provider output is still normalized and
+grounding-checked against the reviewed profile. Any unsafe rewrite falls back
+to the original source bullet.
+
+## Application packets
+
+Build Markdown and HTML packets:
 
 ```bash
 uv run python -m resume_god.applications \
@@ -36,15 +85,49 @@ uv run python -m resume_god.applications \
   --output-dir outputs/applications
 ```
 
-## Documentation
+Also generate one Typst PDF per application:
 
-- `PHASE_0_REVIEW.md` — reviewed profile decisions and remaining date gaps
-- `PHASE_1_TAILORING.md` — deterministic evidence selection
-- `PHASE_2_RENDERING.md` — safe Markdown and HTML resume rendering
-- `PHASE_3_APPLICATIONS.md` — deterministic multi-application packets
+```bash
+uv run python -m resume_god.applications \
+  --manifest applications.yaml \
+  --output-dir outputs/applications \
+  --pdf
+```
+
+## Local Neo4j graph
+
+Start the configured local database:
+
+```bash
+docker compose up -d neo4j
+```
+
+Load the reviewed profile:
+
+```bash
+uv run python -m resume_god.graph load \
+  --profile master_profile.yaml \
+  --uri bolt://localhost:7687 \
+  --user neo4j \
+  --password resume-god-local
+```
+
+Offline graph and semantic queries work without Neo4j:
+
+```bash
+uv run python -m resume_god.graph query \
+  --skill Go \
+  --project project_eventmcp \
+  --search "LLM agent calendar tool" \
+  --limit 5
+```
 
 ## Tests
 
 ```bash
 uv run python -m unittest discover -s tests -v
 ```
+
+The Neo4j load test is optional and runs when `RESUME_GOD_NEO4J_URI` and
+`RESUME_GOD_NEO4J_PASSWORD` are set. Typst PDF tests run when Typst is
+available through `TYPST_BIN`, `.venv/bin/typst`, or `PATH`.

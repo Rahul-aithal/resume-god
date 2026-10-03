@@ -10,17 +10,20 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from .render import render_resume_html, render_resume_markdown
+from .rewrite import rewrite_plan
 from .tailor import (
     build_tailoring_plan,
     load_profile,
     render_plan_markdown,
 )
+from .typst import write_resume_pdf
 
 
 APPLICATION_MANIFEST_VERSION = 1
@@ -164,7 +167,8 @@ def _packet_record(
         "matched_but_unevidenced_skills": [
             {"id": skill["id"], "name": skill["name"]} for skill in unevidenced
         ],
-        "audit_passed": all(plan["audit"].values()),
+        "audit_passed": all(plan["audit"].values())
+        and all(plan.get("rewrite_audit", {}).values()),
     }
 
 
@@ -197,7 +201,12 @@ def _render_index_markdown(index: dict[str, Any]) -> str:
         lines.append(
             "| "
             f"[{_markdown_text(record['id'])}]({record['id']}/resume.html) — "
-            f"{_markdown_text(record['company'])} / "
+            + (
+                f"[PDF]({record['resume_pdf']}) · "
+                if record.get("resume_pdf")
+                else ""
+            )
+            + f"{_markdown_text(record['company'])} / "
             f"{_markdown_text(record['target_title'])} "
             f"| {record['selected_achievement_count']} achievements "
             f"| {record['evidenced_skill_count']}/{record['matched_skill_count']} "
@@ -230,56 +239,107 @@ def build_application_packets(
     *,
     manifest_path: str | Path,
     output_dir: str | Path,
+    include_pdfs: bool = False,
+    typst_path: str | Path | None = None,
+    page_budget_chars: int = 3200,
 ) -> dict[str, Any]:
-    """Build all plan and resume artifacts, then write them as one batch."""
+    """Build every packet in memory/temporary files, then write one batch."""
     applications = _validate_manifest(manifest, Path(manifest_path))
     output_root = Path(output_dir)
     records: list[dict[str, Any]] = []
     artifacts: dict[Path, str] = {}
+    binary_artifacts: dict[Path, bytes] = {}
 
-    for application in applications:
-        job_description = application["job_description_file"].read_text(
-            encoding="utf-8"
-        )
-        plan = build_tailoring_plan(
-            profile,
-            job_description,
-            target_title=application["target_title"],
-            max_achievements=application["max_achievements"],
-        )
-        summary = application.get("summary")
-        packet_dir = output_root / application["id"]
-        artifacts[packet_dir / "tailoring-plan.md"] = render_plan_markdown(
-            plan, profile
-        )
-        artifacts[packet_dir / "tailoring-plan.json"] = (
-            json.dumps(plan, ensure_ascii=False, indent=2) + "\n"
-        )
-        artifacts[packet_dir / "resume.md"] = render_resume_markdown(
-            plan, profile, summary=summary
-        )
-        artifacts[packet_dir / "resume.html"] = render_resume_html(
-            plan, profile, summary=summary
-        )
-        records.append(_packet_record(application, plan))
+    with tempfile.TemporaryDirectory(prefix="resume-god-packets-") as staging:
+        staging_root = Path(staging)
+        for application in applications:
+            job_description = application["job_description_file"].read_text(
+                encoding="utf-8"
+            )
+            base_plan = build_tailoring_plan(
+                profile,
+                job_description,
+                target_title=application["target_title"],
+                max_achievements=application["max_achievements"],
+            )
+            summary = application.get("summary")
+            assembled = rewrite_plan(
+                base_plan,
+                profile,
+                summary=summary,
+                page_budget_chars=page_budget_chars,
+            )
+            report_plan = assembled
+            machine_plan: dict[str, Any] = assembled
+            pdf_result: dict[str, Any] | None = None
 
-    index: dict[str, Any] = {
-        "version": APPLICATION_MANIFEST_VERSION,
-        "phase": "application_packets",
-        "application_count": len(records),
-        "all_audits_passed": all(record["audit_passed"] for record in records),
-        "applications": records,
-    }
-    artifacts[output_root / "index.json"] = (
-        json.dumps(index, ensure_ascii=False, indent=2) + "\n"
-    )
-    artifacts[output_root / "index.md"] = _render_index_markdown(index)
+            if include_pdfs:
+                staged_pdf = staging_root / f"{application['id']}.pdf"
+                report_plan, pdf_result = write_resume_pdf(
+                    assembled,
+                    profile,
+                    staged_pdf,
+                    summary=summary,
+                    typst_path=typst_path,
+                )
+                final_pdf = output_root / application["id"] / "resume.pdf"
+                pdf_result["output"] = str(final_pdf)
+                binary_artifacts[final_pdf] = staged_pdf.read_bytes()
+                machine_plan = {**report_plan, "pdf": pdf_result}
 
-    # Prepare every artifact before changing the output directory. A malformed
-    # later application therefore cannot leave a partial packet batch behind.
-    for path, content in artifacts.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+            packet_dir = output_root / application["id"]
+            markdown_report = render_plan_markdown(report_plan, profile)
+            if pdf_result is not None:
+                markdown_report += chr(10).join(
+                    [
+                        "## PDF output",
+                        "",
+                        f"- PDF: `{pdf_result['output']}`",
+                        f"- Pages: **{pdf_result['page_count']}**",
+                        f"- Automatically trimmed bullets: **{len(pdf_result['trimmed_for_one_page'])}**",
+                        "",
+                    ]
+                )
+            artifacts[packet_dir / "tailoring-plan.md"] = markdown_report
+            artifacts[packet_dir / "tailoring-plan.json"] = (
+                json.dumps(machine_plan, ensure_ascii=False, indent=2) + "\n"
+            )
+            artifacts[packet_dir / "resume.md"] = render_resume_markdown(
+                report_plan, profile, summary=summary
+            )
+            artifacts[packet_dir / "resume.html"] = render_resume_html(
+                report_plan, profile, summary=summary
+            )
+            record = _packet_record(application, report_plan)
+            if pdf_result is not None:
+                record["pdf_page_count"] = pdf_result["page_count"]
+                record["pdf_trimmed_count"] = len(
+                    pdf_result["trimmed_for_one_page"]
+                )
+                record["resume_pdf"] = f"{application['id']}/resume.pdf"
+            records.append(record)
+
+        index: dict[str, Any] = {
+            "version": APPLICATION_MANIFEST_VERSION,
+            "phase": "application_packets",
+            "application_count": len(records),
+            "include_pdfs": include_pdfs,
+            "all_audits_passed": all(record["audit_passed"] for record in records),
+            "applications": records,
+        }
+        artifacts[output_root / "index.json"] = (
+            json.dumps(index, ensure_ascii=False, indent=2) + "\n"
+        )
+        artifacts[output_root / "index.md"] = _render_index_markdown(index)
+
+        # Generate every text and PDF artifact before changing the output
+        # directory. A malformed later application cannot leave a partial batch.
+        for path, content in artifacts.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        for path, content in binary_artifacts.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
 
     return index
 
@@ -291,6 +351,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument(
+        "--pdf",
+        action="store_true",
+        help="Also generate a one-page Typst PDF for each application",
+    )
+    parser.add_argument(
+        "--typst-bin",
+        help="Typst executable (default: TYPST_BIN, .venv/bin/typst, then PATH)",
+    )
+    parser.add_argument("--page-budget-chars", type=int, default=3200)
     args = parser.parse_args(argv)
 
     profile = load_profile(args.profile)
@@ -300,6 +370,9 @@ def main(argv: list[str] | None = None) -> int:
         manifest,
         manifest_path=args.manifest,
         output_dir=args.output_dir,
+        include_pdfs=args.pdf,
+        typst_path=args.typst_bin,
+        page_budget_chars=args.page_budget_chars,
     )
     print((args.output_dir / "index.md").resolve())
     return 0 if index["all_audits_passed"] else 1

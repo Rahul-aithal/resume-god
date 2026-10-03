@@ -274,6 +274,7 @@ def build_tailoring_plan(
     *,
     target_title: str,
     max_achievements: int = 10,
+    parsed_job_description: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build an auditable exact, graph, and semantic retrieval selection."""
     if not job_description.strip():
@@ -289,9 +290,14 @@ def build_tailoring_plan(
     from .jd_parser import parse_job_description
 
     graph = ProfileGraph(profile)
-    parsed = parse_job_description(
-        profile, job_description, target_title=target_title
-    )
+    if parsed_job_description is None:
+        parsed = parse_job_description(
+            profile, job_description, target_title=target_title
+        )
+    else:
+        parsed = parsed_job_description
+        if parsed.get("role_title", "").strip() != target_title:
+            raise ValueError("Parsed job description does not match target title")
     skills = {skill["id"]: skill for skill in profile["skills"]}
     parents = {
         node["id"]: node

@@ -6,6 +6,9 @@ import unittest
 from pathlib import Path
 
 import yaml
+from pypdf import PdfReader
+
+from resume_god.typst import typst_binary
 
 from resume_god.applications import (
     build_application_packets,
@@ -183,6 +186,50 @@ class ApplicationPacketTests(unittest.TestCase):
         self.assertIn("[automation-engineer](automation-engineer/resume.html)", index_markdown)
         self.assertIn("Direct-skill coverage", index_markdown)
         self.assertIn("**software-developer:**", index_markdown)
+
+    @unittest.skipUnless(
+        (Path(ROOT) / ".venv" / "bin" / "typst").exists(),
+        "Typst is required for packet PDFs",
+    )
+    def test_batch_can_include_one_page_typst_pdfs(self):
+        manifest_path = write_manifest(
+            self.root,
+            applications=[
+                {
+                    "id": "automation-engineer",
+                    "company": "Example AI",
+                    "target_title": "AI Automation Engineer",
+                    "job_description_file": "automation.txt",
+                }
+            ],
+        )
+        output_dir = self.root / "pdf-generated"
+        index = build_application_packets(
+            self.profile,
+            yaml.safe_load(manifest_path.read_text(encoding="utf-8")),
+            manifest_path=manifest_path,
+            output_dir=output_dir,
+            include_pdfs=True,
+        )
+
+        self.assertTrue(index["include_pdfs"])
+        record = index["applications"][0]
+        self.assertEqual(record["pdf_page_count"], 1)
+        pdf = output_dir / "automation-engineer" / "resume.pdf"
+        self.assertEqual(len(PdfReader(str(pdf)).pages), 1)
+        machine = json.loads(
+            (output_dir / "automation-engineer" / "tailoring-plan.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertIn("assembly", machine)
+        self.assertIn("rewrites", machine)
+        self.assertIn("pdf", machine)
+        report = (output_dir / "automation-engineer" / "tailoring-plan.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("## Assembly and constrained rewriting", report)
+        self.assertIn("## PDF output", report)
 
     def test_failed_later_application_does_not_write_partial_batch(self):
         manifest_path = write_manifest(

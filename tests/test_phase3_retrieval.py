@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 
 from resume_god.graph import ProfileGraph
+from resume_god.jd_parser import parse_job_description
 from resume_god.tailor import build_tailoring_plan, load_profile, render_plan_markdown
 
 
@@ -54,6 +55,38 @@ class RetrievalTests(unittest.TestCase):
                     self.assertIn("recency", row["score_components"])
                     self.assertIn("metric", row["score_components"])
                     self.assertGreaterEqual(row["semantic_similarity"], 0)
+
+    def test_provider_parsed_jd_can_drive_tailoring(self):
+        class Provider:
+            name = "fake"
+
+            def complete_json(self, prompt):
+                return {
+                    "role_title": "AI Automation Engineer",
+                    "seniority": "junior",
+                    "must_have_skills": ["Python", "n8n", "Postgres"],
+                    "nice_to_have_skills": ["React"],
+                    "keywords": ["automation"],
+                    "key_responsibilities": ["Build automation"],
+                }
+
+        parsed = parse_job_description(
+            self.profile,
+            "Build Python n8n automation with Postgres and React.",
+            provider=Provider(),
+            target_title="AI Automation Engineer",
+        )
+        plan = build_tailoring_plan(
+            self.profile,
+            "Build Python n8n automation with Postgres and React.",
+            target_title="AI Automation Engineer",
+            max_achievements=5,
+            parsed_job_description=parsed,
+        )
+        self.assertEqual(plan["job_description_parse"]["provider"], "fake")
+        self.assertIn("skill_n8n", {row["id"] for row in plan["matched_skills"]})
+        self.assertTrue(plan["ranking"])
+        self.assertTrue(all(plan["audit"].values()))
 
     def test_requirement_coverage_and_gap_report_are_explicit(self):
         plan = self.plan(1)

@@ -38,15 +38,15 @@ The plan records whether each rewrite was used or replaced by fallback.
 ## Usage
 
 ```bash
-uv run python -m resume_god \\
-  --profile master_profile.yaml \\
-  --job-description-file fixtures/jds/jd-1.txt \\
-  --target-title "Software Developer" \\
-  --max-achievements 7 \\
-  --rewrite-provider deterministic \\
-  --page-budget-chars 3200 \\
-  --output outputs/jd-1-plan.md \\
-  --json-output outputs/jd-1-plan.json \\
+uv run python -m resume_god \
+  --profile master_profile.yaml \
+  --job-description-file fixtures/jds/jd-1.txt \
+  --target-title "Software Developer" \
+  --max-achievements 7 \
+  --rewrite-provider deterministic \
+  --page-budget-chars 3200 \
+  --output outputs/jd-1-plan.md \
+  --json-output outputs/jd-1-plan.json \
   --resume-output outputs/jd-1-resume.md
 ```
 

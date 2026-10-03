@@ -20,8 +20,10 @@ The script installs `.venv/bin/typst`. `TYPST_BIN` can override that path.
 ## One-command usage
 
 ```bash
-resume-god tailor fixtures/jds/jd-1.txt \\
-  --target-title "Software Developer" \\
+resume-god tailor fixtures/jds/jd-1.txt \
+  --target-title "Software Developer" \
+  --parser-provider deterministic \
+  --rewrite-provider deterministic \
   --out outputs/resume.pdf
 ```
 
@@ -34,12 +36,14 @@ The command writes:
 `resume-god` is installed by `uv sync`. The equivalent module command is:
 
 ```bash
-uv run python -m resume_god.cli tailor fixtures/jds/jd-1.txt \\
-  --target-title "Software Developer" \\
+uv run python -m resume_god.cli tailor fixtures/jds/jd-1.txt \
+  --target-title "Software Developer" \
+  --parser-provider deterministic \
+  --rewrite-provider deterministic \
   --out outputs/resume.pdf
 ```
 
-If `--target-title` is omitted, the Phase 2 parser derives it from the JD.
+If `--target-title` is omitted, the Phase 2 parser derives it from the JD. Use `--parser-provider glm` or `--parser-provider gemini` for remote structured parsing.
 
 ## One-page enforcement
 
@@ -64,13 +68,16 @@ The Markdown report includes:
 - rewrite/fallback decisions
 - final PDF page count and audit result
 
-## Remote rewriting providers
+## Remote providers
 
 ```bash
-resume-god tailor jd.txt --out resume.pdf --rewrite-provider glm
-resume-god tailor jd.txt --out resume.pdf --rewrite-provider gemini
+resume-god tailor jd.txt --out resume.pdf \
+  --parser-provider glm --rewrite-provider glm
+
+resume-god tailor jd.txt --out resume.pdf \
+  --parser-provider gemini --rewrite-provider gemini
 ```
 
-Set `GLM_API_KEY` or `GEMINI_API_KEY`. Every model rewrite must pass the
-deterministic Phase 4 grounding validator or it falls back to the reviewed
-source bullet.
+Set `GLM_API_KEY` or `GEMINI_API_KEY`. Provider JD output is normalized through
+the reviewed alias table. Every model rewrite must pass the deterministic
+Phase 4 grounding validator or it falls back to the reviewed source bullet.
