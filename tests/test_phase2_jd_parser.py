@@ -76,7 +76,13 @@ class JDParserTests(unittest.TestCase):
         parsed = parse_job_description(self.profile, self.read_jd(1))
         unknown = {row["name"] for row in parsed["unknown_skills"]}
         self.assertIn("MySQL", unknown)
-        self.assertIn("RESTful APIs", unknown)
+        # RESTful APIs is now a reviewed alias of REST APIs, so it
+        # normalizes to a known skill instead of staying unknown.
+        known = {
+            row["name"]
+            for row in parsed["must_have_skills"] + parsed["nice_to_have_skills"]
+        }
+        self.assertIn("REST APIs", known)
 
         explicit = parse_job_description(
             self.profile,

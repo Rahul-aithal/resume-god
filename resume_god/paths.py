@@ -33,3 +33,15 @@ def default_manifest_path() -> Path:
     if local.is_file():
         return local
     return PROJECT_ROOT / "applications.yaml"
+
+
+def default_db_path() -> Path:
+    """Resolve the company tracker DB (SQLite file)."""
+    configured = os.environ.get("RESUME_GOD_DB")
+    if configured:
+        path = Path(configured).expanduser()
+        return path if path.is_absolute() else Path.cwd() / path
+    local = Path.cwd() / "data" / "companies.db"
+    if local.parent.is_dir() or (Path.cwd() / "master_profile.yaml").is_file():
+        return local
+    return PROJECT_ROOT / "data" / "companies.db"

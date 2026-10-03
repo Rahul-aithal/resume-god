@@ -16,6 +16,28 @@ from .paths import default_profile_path
 from .tailor import load_profile
 
 GRAPH_SCHEMA_VERSION = 1
+# Curated framework → language/foundation edges. A bullet that demonstrates
+# the key skill is treated as weaker inferred evidence for the implied skills
+# (e.g. React.js work implies JavaScript exposure). Inferred matches score
+# less than direct or co-occurrence evidence and are always labeled as
+# inferred — never promoted to direct claims.
+SKILL_IMPLIES: dict[str, list[str]] = {
+    "skill_next_js": ["skill_react_js", "skill_typescript", "skill_javascript"],
+    "skill_react_js": ["skill_javascript"],
+    "skill_nestjs": ["skill_node_js", "skill_typescript"],
+    "skill_express_js": ["skill_node_js", "skill_javascript"],
+    "skill_fastapi": ["skill_python"],
+    "skill_shadcn_ui": ["skill_react_js", "skill_tailwind_css"],
+    "skill_radix_ui": ["skill_react_js"],
+    "skill_chakra_ui": ["skill_react_js"],
+    "skill_tanstack_query": ["skill_react_js", "skill_typescript"],
+    "skill_tanstack_table": ["skill_react_js", "skill_typescript"],
+    "skill_drizzle_orm": ["skill_sql", "skill_typescript"],
+    "skill_sqlc": ["skill_sql", "skill_go"],
+    "skill_docker_compose": ["skill_docker"],
+    "skill_github_actions": ["skill_ci_cd"],
+    "skill_rabbitmq": ["skill_microservices"],
+}
 _WORD = re.compile(r"[a-z0-9][a-z0-9+#._-]*", re.IGNORECASE)
 
 
@@ -170,6 +192,34 @@ class ProfileGraph:
                 adjacent.update(achievement["skills"])
                 adjacent.update(self.parent_skills[achievement["part_of"]])
         return adjacent
+
+    def implied_skills(self, skill_id: str) -> list[dict[str, Any]]:
+        """Return transitive framework→foundation implications for a skill."""
+        if skill_id not in self.skills:
+            raise ValueError(f"Unknown skill id: {skill_id}")
+        seen: set[str] = set()
+        frontier = [skill_id]
+        while frontier:
+            current = frontier.pop()
+            for implied in SKILL_IMPLIES.get(current, []):
+                if implied in self.skills and implied not in seen and implied != skill_id:
+                    seen.add(implied)
+                    frontier.append(implied)
+        return [self.skills[item] for item in sorted(seen)]
+
+    def inferred_evidence_for(self, achievement_skill_ids: set[str]) -> set[str]:
+        """Skills an achievement implies via framework→foundation edges."""
+        inferred: set[str] = set()
+        frontier = list(achievement_skill_ids)
+        seen = set(achievement_skill_ids)
+        while frontier:
+            current = frontier.pop()
+            for implied in SKILL_IMPLIES.get(current, []):
+                if implied in self.skills and implied not in seen:
+                    seen.add(implied)
+                    inferred.add(implied)
+                    frontier.append(implied)
+        return inferred - achievement_skill_ids
 
     def _query_vector(self, query: str) -> dict[str, float]:
         tokens = [token for token in _tokenize(query) if token in self.vocabulary]

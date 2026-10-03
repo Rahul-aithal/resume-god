@@ -77,14 +77,28 @@ uv run python -m resume_god.cli tailor path/to/job.txt \
 
 ## LLM providers
 
-The offline deterministic path needs no API key.
+Both default to `auto`: an LLM is used when a key exists, otherwise the
+offline deterministic path runs — never a crash.
 
-- JD parsing: `--parser-provider glm` or `--parser-provider gemini`
-- Bullet rewriting: `--rewrite-provider glm` or `--rewrite-provider gemini`
+- JD parsing: `--parser-provider auto|glm|gemini|deterministic`
+- Bullet rewriting: `--rewrite-provider auto|glm|gemini|deterministic`
 
-Set `GLM_API_KEY` or `GEMINI_API_KEY`. Provider output is still normalized and
-grounding-checked against the reviewed profile. Any unsafe rewrite falls back
-to the original source bullet.
+Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and/or `GLM_API_KEY` (or
+`ZAI_API_KEY`), optionally in a `.env` file. `RESUME_GOD_LLM_ORDER`
+(default `gemini,glm`) controls auto preference. Every report records what
+was requested vs actually used under `## Providers`, including fallback
+reasons.
+
+Provider output is still normalized through the reviewed alias table
+(`JS→JavaScript`, `TS→TypeScript`, …) and grounding-checked against the
+reviewed profile. Any unsafe rewrite falls back to the original source
+bullet, and any provider/network failure falls back to deterministic.
+
+The skill graph also carries curated framework→foundation edges
+(`SKILL_IMPLIES` in `resume_god/graph.py`: Next.js→React/TypeScript/JS,
+React→JS, NestJS→Node/TS, …). Framework work counts as weaker
+`inferred_covered` evidence for language requirements — always labeled as
+inferred, never as a direct claim.
 
 ## Application packets
 
@@ -107,6 +121,41 @@ resume-god applications \
 
 Both `--manifest` and `--profile` are optional. They default to the reviewed
 files in the checkout or to `RESUME_GOD_MANIFEST` and `RESUME_GOD_PROFILE`.
+
+Resumes render with the official Typst template
+`@preview/basic-resume:0.2.9` (`#show: resume.with(...)` + `#work` / `#project`
+/ `#edu` / `#certificates`). First compile downloads the package once; later
+compiles reuse the Typst cache.
+
+## Company tracker (SQLite)
+
+Keep per-company data plus how many roles you applied to and which ones:
+
+```bash
+resume-god company add Goodspace --about "AI hiring products" --location "Noida (Remote)"
+resume-god role add --company Goodspace --title "Software Engineer" --jd-file job.txt
+resume-god role list --company Goodspace
+resume-god role status 1 interview
+resume-god company show Goodspace
+```
+
+DB defaults to `data/companies.db` (override with `--db` or `RESUME_GOD_DB`).
+
+Every `tailor` report now ends with a skill-diff section:
+
+> To join as X they expect N skills; you have evidence for M …
+
+so you can see “they expect all these, I have exposure in only these”.
+
+## Web UI (FastAPI, no npm)
+
+```bash
+resume-god web --port 8000
+```
+
+Open `http://127.0.0.1:8000`: dashboard with company/role counts, per-company
+pages, `/new` paste-a-JD form that generates the Typst PDF + skill diff and
+records the role, and `/files/...` links to each generated PDF/`.typ` source.
 
 ## Local Neo4j graph
 

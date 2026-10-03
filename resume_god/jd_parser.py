@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Iterable, Protocol
 
@@ -258,6 +259,7 @@ def parse_job_description(
         return {
             "version": JD_PARSE_VERSION,
             "provider": "deterministic",
+            "provider_requested": "deterministic",
             "role_title": role_title,
             "seniority": _seniority(job_description, role_title),
             "must_have_skills": matches["must"],
@@ -267,7 +269,25 @@ def parse_job_description(
             "key_responsibilities": _responsibilities(job_description),
         }
 
-    raw = provider.complete_json(_prompt(profile, job_description, target_title))
+    requested = getattr(provider, "name", provider.__class__.__name__.lower())
+    try:
+        raw = provider.complete_json(_prompt(profile, job_description, target_title))
+    except Exception as error:  # network/auth/model failure → offline fallback
+        matches, known_ids = _known_matches(profile, job_description)
+        unknown = _unknown_skills(job_description, known_ids, profile, terms)
+        return {
+            "version": JD_PARSE_VERSION,
+            "provider": "deterministic",
+            "provider_requested": requested,
+            "provider_fallback_error": str(error),
+            "role_title": role_title,
+            "seniority": _seniority(job_description, role_title),
+            "must_have_skills": matches["must"],
+            "nice_to_have_skills": matches["nice"],
+            "unknown_skills": unknown,
+            "keywords": _keywords(matches, unknown),
+            "key_responsibilities": _responsibilities(job_description),
+        }
     must_names = [str(item) for item in raw.get("must_have_skills", [])]
     nice_names = [str(item) for item in raw.get("nice_to_have_skills", [])]
     must_rows, unknown_must = _skill_rows(must_names, terms)
@@ -276,6 +296,7 @@ def parse_job_description(
     return {
         "version": JD_PARSE_VERSION,
         "provider": getattr(provider, "name", provider.__class__.__name__.lower()),
+        "provider_requested": requested,
         "role_title": str(raw.get("role_title") or target_title or "").strip(),
         "seniority": str(raw.get("seniority") or "not specified"),
         "must_have_skills": must_rows,
@@ -310,6 +331,9 @@ Return exactly these keys:
 - key_responsibilities: array of strings
 
 Normalize skills through this alias table when possible: {json.dumps(aliases, ensure_ascii=False)}
+Common abbreviations to normalize: JS→JavaScript, TS→TypeScript, Next→Next.js,
+Nest→NestJS, PG/Postgres→PostgreSQL, Mongo→MongoDB, GHA→GitHub Actions,
+CI/CD→CI/CD, REST→REST APIs, OAuth→OAuth2, React→React.js, Node→Node.js.
 Keep unknown skills unchanged. Do not invent facts or merge distinct technologies.
 Suggested target title: {target_title or "(not provided)"}
 
@@ -322,16 +346,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("job_description_file", type=Path)
     parser.add_argument("--profile", type=Path, default=None)
     parser.add_argument("--target-title")
-    parser.add_argument("--provider", choices=("deterministic", "glm", "gemini"), default="deterministic")
+    parser.add_argument("--provider", choices=("auto", "deterministic", "glm", "gemini"), default="auto")
     parser.add_argument("--json-output", type=Path)
     args = parser.parse_args(argv)
 
     profile = load_profile(args.profile or default_profile_path())
-    provider = None
-    if args.provider != "deterministic":
-        from .llm import make_provider
+    from .llm import resolve_or_none
 
-        provider = make_provider(args.provider)
+    provider, requested, req_error = resolve_or_none(args.provider)
+    if req_error:
+        print(f"LLM provider fallback ({requested}): {req_error}", file=sys.stderr)
     parsed = parse_job_description(
         profile,
         args.job_description_file.read_text(encoding="utf-8"),

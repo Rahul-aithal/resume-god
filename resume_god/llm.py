@@ -128,3 +128,74 @@ def make_provider(name: str) -> Any:
     if name == "gemini":
         return GeminiProvider()
     raise ValueError(f"Unknown LLM provider: {name}. Use glm or gemini.")
+
+
+PROVIDER_CHOICES = ("auto", "deterministic", "glm", "gemini")
+
+
+def _has_key(name: str) -> bool:
+    if name == "gemini":
+        return any(os.environ.get(key) for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    if name == "glm":
+        return any(
+            os.environ.get(key)
+            for key in ("GLM_API_KEY", "ZAI_API_KEY", "Z_AI_API_KEY", "ZHIPU_API_KEY")
+        )
+    return False
+
+
+def default_provider_order() -> list[str]:
+    """Order used for auto resolution; override with RESUME_GOD_LLM_ORDER."""
+    raw = os.environ.get("RESUME_GOD_LLM_ORDER", "gemini,glm")
+    order = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    return [item for item in order if item in ("gemini", "glm")] or ["gemini", "glm"]
+
+
+def resolve_provider(name: str | None) -> Any | None:
+    """Resolve a provider choice to an instance, or None for offline.
+
+    - "deterministic"/None → None (fully offline).
+    - "glm"/"gemini" → constructed instance (raises LLMError without a key).
+    - "auto" → first provider in the default order that has a key, else None.
+    """
+    if name is None or name == "deterministic":
+        return None
+    if name in ("glm", "gemini"):
+        return make_provider(name)
+    if name == "auto":
+        for candidate in default_provider_order():
+            if _has_key(candidate):
+                try:
+                    return make_provider(candidate)
+                except LLMError:
+                    continue
+        return None
+    raise ValueError(f"Unknown LLM provider: {name}. Use {', '.join(PROVIDER_CHOICES)}.")
+
+
+def resolve_or_none(name: str | None) -> tuple[Any | None, str, str | None]:
+    """Resolve a provider choice without ever raising.
+
+    Returns (provider_or_None, requested_name, fallback_error_or_None).
+    Explicit choices without keys and auto without keys all fall back to
+    offline instead of crashing.
+    """
+    requested = name or "deterministic"
+    try:
+        return resolve_provider(name), requested, None
+    except (LLMError, ValueError) as error:
+        return None, requested, str(error)
+
+
+def active_provider_label(name: str | None) -> str:
+    """Human-readable label for what auto resolution would use (no calls)."""
+    if name in (None, "deterministic"):
+        return "deterministic (offline)"
+    if name in ("glm", "gemini"):
+        return f"{name} ({'key found' if _has_key(name) else 'NO KEY — will fall back offline'})"
+    if name == "auto":
+        for candidate in default_provider_order():
+            if _has_key(candidate):
+                return f"{candidate} (auto)"
+        return "deterministic (auto — no keys found)"
+    return str(name)

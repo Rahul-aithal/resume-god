@@ -39,7 +39,7 @@ class RetrievalTests(unittest.TestCase):
         for number in TITLES:
             with self.subTest(jd=number):
                 plan = self.plan(number)
-                self.assertEqual(plan["selection_policy_version"], 2)
+                self.assertEqual(plan["selection_policy_version"], 3)
                 self.assertEqual(plan["job_description_parse"]["provider"], "deterministic")
                 self.assertEqual(plan["semantic_search"]["method"], "deterministic_tfidf_cosine")
                 self.assertLessEqual(len(plan["semantic_search"]["top_matches"]), 5)
@@ -109,8 +109,16 @@ class RetrievalTests(unittest.TestCase):
             for row in plan["gap_report"]["matched_but_unevidenced_skills"]
         }
         self.assertIn("Express.js", unevidenced)
-        self.assertIn("JavaScript", unevidenced)
         self.assertIn("GitHub", unevidenced)
+        # JavaScript is now covered via framework→foundation inference
+        # (React.js/Next.js work implies JavaScript exposure), so it must
+        # appear as inferred rather than unevidenced.
+        inferred = {
+            row["name"]
+            for row in plan["gap_report"].get("inferred_covered_skills", [])
+        }
+        self.assertIn("JavaScript", inferred)
+        self.assertNotIn("JavaScript", unevidenced)
 
     def test_semantic_similarity_and_graph_expansion_are_deterministic(self):
         query = "LLM agent calendar tool"

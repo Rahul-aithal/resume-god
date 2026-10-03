@@ -154,6 +154,16 @@ def _packet_record(
         for row in plan["ranking"]
         for skill_id in row["direct_skill_matches"]
     }
+    evidenced_ids.update(
+        skill_id
+        for row in plan["ranking"]
+        for skill_id in row.get("expanded_skill_matches", [])
+    )
+    evidenced_ids.update(
+        skill_id
+        for row in plan["ranking"]
+        for skill_id in row.get("inferred_skill_matches", [])
+    )
     matched_by_id = {
         skill["id"]: skill for skill in plan["matched_skills"]
     }

@@ -9,11 +9,12 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .paths import default_profile_path
+from .paths import default_db_path, default_profile_path
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
 from .render import render_resume_html, render_resume_markdown
 from .rewrite import rewrite_plan
 from .typst import write_resume_pdf
+from .diff import build_skill_diff, render_skill_diff_markdown
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,15 +50,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--parser-provider",
-        choices=("deterministic", "glm", "gemini"),
-        default="deterministic",
-        help="JD parsing provider; deterministic runs fully offline",
+        choices=("auto", "deterministic", "glm", "gemini"),
+        default="auto",
+        help="JD parsing provider; auto uses an LLM when a key exists, else offline",
     )
     parser.add_argument(
         "--rewrite-provider",
-        choices=("deterministic", "glm", "gemini"),
-        default="deterministic",
-        help="Constrained rewrite provider; deterministic means reviewed originals",
+        choices=("auto", "deterministic", "glm", "gemini"),
+        default="auto",
+        help="Constrained rewrite provider; auto uses an LLM when a key exists",
     )
     parser.add_argument(
         "--page-budget-chars",
@@ -107,19 +108,36 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
     parser.add_argument("--summary", help="Optional user-reviewed summary")
     parser.add_argument(
         "--parser-provider",
-        choices=("deterministic", "glm", "gemini"),
-        default="deterministic",
+        choices=("auto", "deterministic", "glm", "gemini"),
+        default="auto",
+        help="JD parsing provider (default: auto with offline fallback)",
     )
     parser.add_argument(
         "--rewrite-provider",
-        choices=("deterministic", "glm", "gemini"),
-        default="deterministic",
+        choices=("auto", "deterministic", "glm", "gemini"),
+        default="auto",
+        help="Constrained rewrite provider (default: auto with offline fallback)",
     )
     parser.add_argument("--page-budget-chars", type=int, default=3200)
     return parser
 
 
+def _load_env() -> None:
+    """Load .env files if python-dotenv is available (keys for LLM providers)."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(Path.cwd() / ".env", override=False)
+    try:
+        from .paths import PROJECT_ROOT
+    except ImportError:
+        return
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+
 def _doctor_main() -> int:
+    _load_env()
     from .typst import typst_binary
 
     profile_path = default_profile_path()
@@ -135,6 +153,16 @@ def _doctor_main() -> int:
     print(f"resume-god {__version__}")
     print(f"Profile: {profile_path} [{'PASS' if profile_ok else 'FAIL'}]")
     print(f"Typst:   {typst_detail} [{'PASS' if typst_ok else 'FAIL'}]")
+    try:
+        import fastapi  # noqa: F401
+        import uvicorn  # noqa: F401
+
+        print("Web deps (fastapi/uvicorn): PASS")
+        web_ok = True
+    except ModuleNotFoundError as error:
+        print(f"Web deps (fastapi/uvicorn): FAIL ({error})")
+        print("Fix: re-run ./scripts/install-cli.sh to rebuild the global tool env.")
+        web_ok = False
     print(
         "GLM key: "
         + ("configured" if any(os.environ.get(k) for k in ('GLM_API_KEY','ZAI_API_KEY','Z_AI_API_KEY','ZHIPU_API_KEY')) else "not configured")
@@ -143,7 +171,10 @@ def _doctor_main() -> int:
         "Gemini key: "
         + ("configured" if any(os.environ.get(k) for k in ('GEMINI_API_KEY','GOOGLE_API_KEY')) else "not configured")
     )
-    if not (profile_ok and typst_ok):
+    from .llm import active_provider_label
+
+    print(f"LLM default (auto): {active_provider_label('auto')}")
+    if not (profile_ok and typst_ok and web_ok):
         return 1
     return 0
 
@@ -157,17 +188,22 @@ def _tailor_main(argv: list[str]) -> int:
 
     from .jd_parser import parse_job_description
 
-    parser_provider = None
-    if args.parser_provider != "deterministic":
-        from .llm import make_provider
+    from .llm import resolve_or_none
 
-        parser_provider = make_provider(args.parser_provider)
+    parser_provider, parser_req, parser_req_error = resolve_or_none(
+        args.parser_provider
+    )
     parsed = parse_job_description(
         profile,
         job_description,
         provider=parser_provider,
         target_title=args.target_title,
     )
+    # Stamp what was requested (auto/deterministic/explicit) since the
+    # offline branch of the parser cannot know the CLI choice.
+    parsed["provider_requested"] = parser_req
+    if parser_req_error and not parsed.get("provider_fallback_error"):
+        parsed["provider_fallback_error"] = parser_req_error
     target_title = args.target_title or parsed["role_title"]
 
     plan = build_tailoring_plan(
@@ -177,11 +213,9 @@ def _tailor_main(argv: list[str]) -> int:
         max_achievements=args.max_achievements,
         parsed_job_description=parsed,
     )
-    rewrite_provider = None
-    if args.rewrite_provider != "deterministic":
-        from .llm import make_provider
-
-        rewrite_provider = make_provider(args.rewrite_provider)
+    rewrite_provider, rewrite_req, rewrite_req_error = resolve_or_none(
+        args.rewrite_provider
+    )
     plan = rewrite_plan(
         plan,
         profile,
@@ -189,6 +223,9 @@ def _tailor_main(argv: list[str]) -> int:
         summary=args.summary,
         page_budget_chars=args.page_budget_chars,
     )
+    plan["rewrite_provider_requested"] = rewrite_req
+    if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
+        plan["rewrite_provider_fallback_error"] = rewrite_req_error
     adjusted, pdf = write_resume_pdf(
         plan,
         profile,
@@ -205,6 +242,32 @@ def _tailor_main(argv: list[str]) -> int:
         f"{args.out.stem}-plan.json"
     )
     report = render_plan_markdown(adjusted, profile)
+    diff = build_skill_diff(adjusted, profile)
+    report += render_skill_diff_markdown(diff)
+    parsed_meta = adjusted.get("job_description_parse", {})
+    parser_used = parsed_meta.get("provider", "deterministic")
+    parser_req = parsed_meta.get("provider_requested", parser_used)
+    rewrite_used = adjusted.get("rewrite_provider", "deterministic")
+    rewrite_req = adjusted.get("rewrite_provider_requested", rewrite_used)
+    report += chr(10).join(
+        [
+            "## Providers",
+            "",
+            f"- JD parsing: requested **{parser_req}**, used **{parser_used}**"
+            + (
+                f" (fallback: {parsed_meta.get('provider_fallback_error')})"
+                if parsed_meta.get("provider_fallback_error")
+                else ""
+            ),
+            f"- Rewriting: requested **{rewrite_req}**, used **{rewrite_used}**"
+            + (
+                f" (fallback: {adjusted.get('rewrite_provider_fallback_error')})"
+                if adjusted.get("rewrite_provider_fallback_error")
+                else ""
+            ),
+            "",
+        ]
+    )
     report += chr(10).join(
         [
             "## PDF output",
@@ -222,7 +285,7 @@ def _tailor_main(argv: list[str]) -> int:
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(
         json.dumps(
-            {**adjusted, "pdf": pdf},
+            {**adjusted, "skill_diff": diff, "pdf": pdf},
             ensure_ascii=False,
             indent=2,
         )
@@ -236,12 +299,133 @@ def _tailor_main(argv: list[str]) -> int:
     return 0 if pdf["audit_passed"] else 1
 
 
+def _company_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="resume-god company")
+    parser.add_argument("--db", type=Path, default=None)
+    sub = parser.add_subparsers(dest="action", required=True)
+    add = sub.add_parser("add", help="Add or update a company")
+    add.add_argument("name")
+    add.add_argument("--db", type=Path, default=None)
+    add.add_argument("--website", default="")
+    add.add_argument("--location", default="")
+    add.add_argument("--about", default="")
+    add.add_argument("--notes", default="")
+    show = sub.add_parser("show", help="Show a company with role counts")
+    show.add_argument("name")
+    show.add_argument("--db", type=Path, default=None)
+    list_p = sub.add_parser("list", help="List companies with role counts")
+    list_p.add_argument("--db", type=Path, default=None)
+    args = parser.parse_args(argv)
+    from .store import company_detail, connect, list_companies, upsert_company
+
+    conn = connect(args.db or default_db_path())
+    if args.action == "add":
+        company = upsert_company(
+            conn, args.name, website=args.website, location=args.location,
+            about=args.about, notes=args.notes,
+        )
+        print(json.dumps(company, ensure_ascii=False, indent=2))
+    elif args.action == "show":
+        detail = company_detail(conn, args.name)
+        if not detail:
+            print(f"Unknown company: {args.name}", file=sys.stderr)
+            return 1
+        print(f"{detail['name']} — {detail['role_count']} role(s)")
+        for status, count in detail["by_status"].items():
+            print(f"  {status}: {count}")
+        for role in detail["roles"]:
+            print(f"  - [{role['id']}] {role['target_title']} ({role['status']})")
+    else:
+        for company in list_companies(conn):
+            print(f"{company['name']} — {company['role_count']} role(s)")
+    return 0
+
+
+def _role_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="resume-god role")
+    parser.add_argument("--db", type=Path, default=None)
+    sub = parser.add_subparsers(dest="action", required=True)
+    add = sub.add_parser("add", help="Record a role application for a company")
+    add.add_argument("--company", required=True)
+    add.add_argument("--title", required=True)
+    add.add_argument("--db", type=Path, default=None)
+    add.add_argument("--status", default="applied")
+    add.add_argument("--jd-file", type=Path, default=None)
+    add.add_argument("--job-url", default="")
+    add.add_argument("--salary", default="")
+    add.add_argument("--location", default="")
+    add.add_argument("--notes", default="")
+    lst = sub.add_parser("list", help="List roles, optionally per company")
+    lst.add_argument("--company", default=None)
+    lst.add_argument("--db", type=Path, default=None)
+    set_status = sub.add_parser("status", help="Update a role status")
+    set_status.add_argument("role_id", type=int)
+    set_status.add_argument("status")
+    set_status.add_argument("--db", type=Path, default=None)
+    args = parser.parse_args(argv)
+    from .store import add_role, connect, list_roles, set_role_status
+
+    conn = connect(args.db or default_db_path())
+    if args.action == "add":
+        jd_text = args.jd_file.read_text(encoding="utf-8") if args.jd_file else ""
+        role = add_role(
+            conn, args.company, args.title, status=args.status,
+            job_url=args.job_url, salary=args.salary, location=args.location,
+            jd_text=jd_text, notes=args.notes,
+        )
+        print(json.dumps(role, ensure_ascii=False, indent=2))
+    elif args.action == "list":
+        for role in list_roles(conn, company_name=args.company):
+            print(f"[{role['id']}] {role['company_name']} / {role['target_title']} ({role['status']})")
+    else:
+        role = set_role_status(conn, args.role_id, args.status)
+        print(json.dumps(role, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _web_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="resume-god web")
+    parser.add_argument("--db", type=Path, default=None)
+    parser.add_argument("--profile", type=Path, default=None)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--outputs", type=Path, default=Path("outputs/web"))
+    args = parser.parse_args(argv)
+    try:
+        import uvicorn
+    except ModuleNotFoundError:
+        print(
+            "Web dependencies are missing (uvicorn/fastapi). "
+            "Re-run ./scripts/install-cli.sh to rebuild the global tool env, "
+            "or use `uv run resume-god web` from the repo checkout.",
+            file=sys.stderr,
+        )
+        return 1
+
+    from .web import create_app
+
+    app = create_app(
+        db_path=args.db or default_db_path(),
+        profile_path=args.profile or default_profile_path(),
+        outputs_dir=args.outputs,
+    )
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    _load_env()
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments and arguments[0] == "tailor":
         return _tailor_main(arguments[1:])
     if arguments and arguments[0] == "doctor":
         return _doctor_main()
+    if arguments and arguments[0] == "company":
+        return _company_main(arguments[1:])
+    if arguments and arguments[0] == "role":
+        return _role_main(arguments[1:])
+    if arguments and arguments[0] == "web":
+        return _web_main(arguments[1:])
     if arguments and arguments[0] == "applications":
         from .applications import main as applications_main
 
@@ -269,18 +453,20 @@ def main(argv: list[str] | None = None) -> int:
     profile_path = args.profile or default_profile_path()
     profile = load_profile(profile_path)
     from .jd_parser import parse_job_description
+    from .llm import resolve_or_none
 
-    parser_provider = None
-    if args.parser_provider != "deterministic":
-        from .llm import make_provider
-
-        parser_provider = make_provider(args.parser_provider)
+    parser_provider, parser_req, parser_req_error = resolve_or_none(
+        args.parser_provider
+    )
     parsed = parse_job_description(
         profile,
         job_description,
         provider=parser_provider,
         target_title=args.target_title,
     )
+    parsed["provider_requested"] = parser_req
+    if parser_req_error and not parsed.get("provider_fallback_error"):
+        parsed["provider_fallback_error"] = parser_req_error
     plan = build_tailoring_plan(
         profile,
         job_description,
@@ -288,11 +474,9 @@ def main(argv: list[str] | None = None) -> int:
         max_achievements=args.max_achievements,
         parsed_job_description=parsed,
     )
-    rewrite_provider = None
-    if args.rewrite_provider != "deterministic":
-        from .llm import make_provider
-
-        rewrite_provider = make_provider(args.rewrite_provider)
+    rewrite_provider, rewrite_req, rewrite_req_error = resolve_or_none(
+        args.rewrite_provider
+    )
     plan = rewrite_plan(
         plan,
         profile,
@@ -300,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
         summary=args.summary,
         page_budget_chars=args.page_budget_chars,
     )
+    plan["rewrite_provider_requested"] = rewrite_req
+    if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
+        plan["rewrite_provider_fallback_error"] = rewrite_req_error
 
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)

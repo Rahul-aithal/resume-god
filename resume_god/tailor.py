@@ -15,7 +15,7 @@ from typing import Any
 
 import yaml
 
-SELECTION_POLICY_VERSION = 2
+SELECTION_POLICY_VERSION = 3
 
 
 def load_profile(path: str | Path) -> dict[str, Any]:
@@ -97,12 +97,14 @@ def _achievement_scores(
     must_skill_ids: set[str] | None = None,
     nice_skill_ids: set[str] | None = None,
     expanded_skill_ids: set[str] | None = None,
+    implies_closure: dict[str, set[str]] | None = None,
     semantic_scores: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
-    """Combine exact, graph-expanded, semantic, recency, and metric evidence."""
+    """Combine exact, graph-expanded, inferred, semantic, recency, and metric evidence."""
     must_ids = must_skill_ids or set()
     nice_ids = nice_skill_ids or set()
     expanded_ids = expanded_skill_ids or set()
+    closure = implies_closure or {}
     semantics = semantic_scores or {}
     scored: list[dict[str, Any]] = []
 
@@ -112,6 +114,16 @@ def _achievement_scores(
         direct_nice = sorted(linked & nice_ids)
         direct_matches = sorted(linked & matched_skill_ids)
         expanded_matches = sorted((linked & expanded_ids) - set(direct_matches))
+        # Framework→foundation inference runs achievement → implied skill:
+        # a React.js bullet is weaker evidence for a JavaScript requirement.
+        inferred_evidence: set[str] = set()
+        for skill_id in linked:
+            inferred_evidence.update(closure.get(skill_id, set()))
+        inferred_matches = sorted(
+            (inferred_evidence & matched_skill_ids)
+            - set(direct_matches)
+            - set(expanded_matches)
+        )
         similarity = round(semantics.get(achievement["id"], 0.0), 8)
         metrics = list(achievement.get("metrics", []))
         recency = _recency_score(achievement.get("date_range"))
@@ -119,10 +131,12 @@ def _achievement_scores(
 
         exact_points = len(direct_must) * 12 + len(direct_nice) * 7
         graph_points = len(expanded_matches) * 3
+        inferred_points = len(inferred_matches) * 1
         semantic_points = round(max(similarity, 0.0) * 8, 6)
         score = round(
             exact_points
             + graph_points
+            + inferred_points
             + semantic_points
             + recency * 4
             + metric_points,
@@ -131,8 +145,9 @@ def _achievement_scores(
 
         # Semantic retrieval may surface source-backed evidence whose skill
         # wording differs from the JD. It cannot inject a skill claim that is
-        # absent from the achievement's reviewed profile links.
-        if direct_matches or expanded_matches or similarity >= 0.08:
+        # absent from the achievement's reviewed profile links. Inferred
+        # framework→foundation matches are weaker still and always labeled.
+        if direct_matches or expanded_matches or inferred_matches or similarity >= 0.08:
             scored.append(
                 {
                     "achievement": achievement,
@@ -140,6 +155,7 @@ def _achievement_scores(
                     "score": score,
                     "direct_skill_matches": direct_matches,
                     "expanded_skill_matches": expanded_matches,
+                    "inferred_skill_matches": inferred_matches,
                     "requirement_skill_matches": sorted(
                         set(direct_matches) | set(expanded_matches)
                     ),
@@ -149,6 +165,7 @@ def _achievement_scores(
                     "score_components": {
                         "exact": exact_points,
                         "graph_expansion": graph_points,
+                        "inferred": inferred_points,
                         "semantic": semantic_points,
                         "recency": round(recency * 4, 6),
                         "metric": metric_points,
@@ -178,12 +195,16 @@ def _select_with_skill_and_parent_coverage(
                 continue
             direct_matches = set(row["direct_skill_matches"])
             expanded_matches = set(row["expanded_skill_matches"])
+            inferred_matches = set(row.get("inferred_skill_matches", []))
             new_direct = len(direct_matches - covered_skills)
             new_expanded = len((expanded_matches - covered_skills) - direct_matches)
+            new_inferred = len(
+                (inferred_matches - covered_skills) - direct_matches - expanded_matches
+            )
             parent_count = parent_counts[row["achievement"]["part_of"]]
             utility = (
                 new_direct * 1000,
-                new_expanded * 20 + row["score"] - parent_count * 15,
+                new_expanded * 20 + new_inferred * 5 + row["score"] - parent_count * 15,
                 -row["position"],
             )
             if best_utility is None or utility > best_utility:
@@ -196,6 +217,7 @@ def _select_with_skill_and_parent_coverage(
         selected.append(row)
         selected_ids.add(row["achievement"]["id"])
         covered_skills.update(row["requirement_skill_matches"])
+        covered_skills.update(row.get("inferred_skill_matches", []))
         parent_counts[row["achievement"]["part_of"]] += 1
 
     return selected
@@ -232,6 +254,9 @@ def _coverage_rows(
     requirements: list[dict[str, Any]],
     profile: dict[str, Any],
     selected_achievements: list[dict[str, Any]],
+    *,
+    inferred_available: set[str] | None = None,
+    inferred_selected: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     available = {
         skill_id
@@ -243,6 +268,8 @@ def _coverage_rows(
         for achievement in selected_achievements
         for skill_id in achievement["skills"]
     }
+    inferred_available = inferred_available or set()
+    inferred_selected = inferred_selected or set()
     rows: list[dict[str, Any]] = []
     for requirement in requirements:
         skill_id = requirement["id"]
@@ -252,8 +279,14 @@ def _coverage_rows(
         elif skill_id in selected:
             status = "covered"
             evidence_available = True
+        elif skill_id in inferred_selected:
+            status = "inferred_covered"
+            evidence_available = True
         elif skill_id in available:
             status = "profile_skill_not_selected"
+            evidence_available = True
+        elif skill_id in inferred_available:
+            status = "inferred_available_not_selected"
             evidence_available = True
         else:
             status = "profile_skill_without_evidence"
@@ -330,6 +363,32 @@ def build_tailoring_plan(
         expanded_skill_ids.update(connected_ids)
     expanded_skill_ids -= matched_skill_ids
 
+    inferred_skill_ids: set[str] = set()
+    implies_paths: list[dict[str, Any]] = []
+    implies_closure: dict[str, set[str]] = {
+        skill_id: {item["id"] for item in graph.implied_skills(skill_id)}
+        for skill_id in skills
+    }
+    for skill_id in sorted(matched_skill_ids):
+        # Reverse lookup: which profile skills imply this matched skill?
+        # e.g. JavaScript ← {React.js, Next.js, Express.js}.
+        implying = sorted(
+            source
+            for source in skills
+            if skill_id in implies_closure.get(source, set())
+        )
+        if implying:
+            implies_paths.append(
+                {
+                    "for_skill_id": skill_id,
+                    "via": "framework_implies_foundation",
+                    "implied_by_skill_ids": implying,
+                }
+            )
+            inferred_skill_ids.update(implying)
+    inferred_skill_ids -= matched_skill_ids
+    inferred_skill_ids -= expanded_skill_ids
+
     semantic_results = graph.search_bullets(
         job_description, limit=len(profile["achievements"])
     )
@@ -343,6 +402,7 @@ def build_tailoring_plan(
         must_skill_ids=must_ids,
         nice_skill_ids=nice_ids,
         expanded_skill_ids=expanded_skill_ids,
+        implies_closure=implies_closure,
         semantic_scores=semantic_scores,
     )
     selected_rows = _select_with_skill_and_parent_coverage(
@@ -377,9 +437,23 @@ def build_tailoring_plan(
         selected_skill_ids.update(achievement["skills"])
 
     supporting_skill_ids = sorted(selected_skill_ids - matched_skill_ids)
+    inferred_available: set[str] = set()
+    for achievement in profile["achievements"]:
+        inferred_available.update(
+            graph.inferred_evidence_for(set(achievement["skills"]))
+        )
+    inferred_selected: set[str] = set()
+    for achievement in selected_achievements:
+        inferred_selected.update(
+            graph.inferred_evidence_for(set(achievement["skills"]))
+        )
     requirements = _requirement_rows(parsed)
     requirement_coverage = _coverage_rows(
-        requirements, profile, selected_achievements
+        requirements,
+        profile,
+        selected_achievements,
+        inferred_available=inferred_available,
+        inferred_selected=inferred_selected,
     )
     matched_but_unevidenced = [
         {
@@ -389,7 +463,18 @@ def build_tailoring_plan(
             "status": row["status"],
         }
         for row in requirement_coverage
-        if row["kind"] == "profile_skill" and row["status"] != "covered"
+        if row["kind"] == "profile_skill"
+        and row["status"] not in ("covered", "inferred_covered")
+    ]
+    inferred_covered_skills = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "priority": row["priority"],
+            "status": row["status"],
+        }
+        for row in requirement_coverage
+        if row["status"] == "inferred_covered"
     ]
     unknown_skills = [
         {"name": row["name"], "status": row["status"]}
@@ -413,6 +498,7 @@ def build_tailoring_plan(
         "every_selected_achievement_is_retrieved_from_reviewed_evidence": all(
             bool(row["direct_skill_matches"])
             or bool(row["expanded_skill_matches"])
+            or bool(row.get("inferred_skill_matches"))
             or row["semantic_similarity"] >= 0.08
             for row in selected_rows
         ),
@@ -463,6 +549,7 @@ def build_tailoring_plan(
                 "score": row["score"],
                 "direct_skill_matches": row["direct_skill_matches"],
                 "expanded_skill_matches": row["expanded_skill_matches"],
+                "inferred_skill_matches": row.get("inferred_skill_matches", []),
                 "semantic_similarity": row["semantic_similarity"],
                 "recency_score": row["recency_score"],
                 "metrics": row["metrics"],
@@ -478,11 +565,14 @@ def build_tailoring_plan(
             "hops": 2,
             "paths": expansion_paths,
             "expanded_skill_ids": sorted(expanded_skill_ids),
+            "implies_paths": implies_paths,
+            "inferred_skill_ids": sorted(inferred_skill_ids),
         },
         "requirement_coverage": requirement_coverage,
         "gap_report": {
             "unknown_skills": unknown_skills,
             "matched_but_unevidenced_skills": matched_but_unevidenced,
+            "inferred_covered_skills": inferred_covered_skills,
             "all_known_requirements_covered": not matched_but_unevidenced,
         },
         "audit": audit,
@@ -602,6 +692,13 @@ def render_plan_markdown(plan: dict[str, Any], profile: dict[str, Any]) -> str:
         lines.append(f"- **Matched but unevidenced:** {unevidenced}")
     else:
         lines.append("- **Matched but unevidenced:** None")
+    if gaps.get("inferred_covered_skills"):
+        inferred_names = ", ".join(
+            row["name"] for row in gaps["inferred_covered_skills"]
+        )
+        lines.append(
+            f"- **Inferred (framework implies foundation, weaker evidence):** {inferred_names}"
+        )
 
     if "assembly" in plan:
         assembly = plan["assembly"]
@@ -656,10 +753,15 @@ def render_plan_markdown(plan: dict[str, Any], profile: dict[str, Any]) -> str:
             skills[item]["name"]
             for item in row.get("expanded_skill_matches", [])
         )
+        inferred = ", ".join(
+            skills[item]["name"]
+            for item in row.get("inferred_skill_matches", [])
+        )
         components = row.get("score_components", {})
         lines.append(
             f"- `{row['achievement_id']}` — score {row['score']}; "
             f"exact: {direct or 'none'}; expanded: {expanded or 'none'}; "
+            f"inferred: {inferred or 'none'}; "
             f"semantic: {row.get('semantic_similarity', 0)}; "
             f"components: {components}"
         )

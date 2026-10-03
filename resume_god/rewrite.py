@@ -153,14 +153,25 @@ def rewrite_plan(
     selected = result["selected_achievements"]
 
     raw_rewrites: dict[str, str] = {}
+    rewrite_provider = "deterministic"
+    rewrite_requested = "deterministic"
+    rewrite_fallback_error: str | None = None
     if provider is not None:
-        response = provider.complete_json(_prompt(result, selected))
-        for row in response.get("rewrites", []):
-            if not isinstance(row, dict) or "achievement_id" not in row:
-                continue
-            achievement_id = str(row["achievement_id"])
-            if achievement_id in achievements and isinstance(row.get("text"), str):
-                raw_rewrites[achievement_id] = row["text"]
+        rewrite_requested = getattr(
+            provider, "name", provider.__class__.__name__.lower()
+        )
+        try:
+            response = provider.complete_json(_prompt(result, selected))
+            rewrite_provider = rewrite_requested
+            for row in response.get("rewrites", []):
+                if not isinstance(row, dict) or "achievement_id" not in row:
+                    continue
+                achievement_id = str(row["achievement_id"])
+                if achievement_id in achievements and isinstance(row.get("text"), str):
+                    raw_rewrites[achievement_id] = row["text"]
+        except Exception as error:  # network/auth failure → all fallback
+            rewrite_provider = "deterministic"
+            rewrite_fallback_error = str(error)
 
     records: dict[str, dict[str, Any]] = {}
     used_count = 0
@@ -194,6 +205,10 @@ def rewrite_plan(
 
     result["rewrites"] = records
     result["rewrite_policy_version"] = REWRITE_POLICY_VERSION
+    result["rewrite_provider"] = rewrite_provider
+    result["rewrite_provider_requested"] = rewrite_requested
+    if rewrite_fallback_error is not None:
+        result["rewrite_provider_fallback_error"] = rewrite_fallback_error
     result["rewrite_audit"] = {
         "all_rewritten_achievements_exist": all(
             item in achievements for item in records

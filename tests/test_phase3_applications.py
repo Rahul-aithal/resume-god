@@ -172,7 +172,9 @@ class ApplicationPacketTests(unittest.TestCase):
             item["name"]
             for item in software["matched_but_unevidenced_skills"]
         }
-        self.assertIn("JavaScript", gap_names)
+        # JavaScript is now evidenced via framework→foundation inference
+        # (React.js work implies JavaScript), so it leaves the gap list.
+        self.assertNotIn("JavaScript", gap_names)
         self.assertIn("Express.js", gap_names)
         self.assertIn("GitHub", gap_names)
         self.assertIn(

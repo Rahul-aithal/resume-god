@@ -71,11 +71,11 @@ skills:
   - id: skill_javascript
     name: JavaScript
     category: Programming Languages
-    aliases: []
+    aliases: [JS]
   - id: skill_typescript
     name: TypeScript
     category: Programming Languages
-    aliases: []
+    aliases: [TS]
   - id: skill_go
     name: Go
     category: Programming Languages
@@ -137,11 +137,11 @@ skills:
   - id: skill_node_js
     name: Node.js
     category: Backend & APIs
-    aliases: [Node]
+    aliases: [Node, NodeJS]
   - id: skill_nestjs
     name: NestJS
     category: Backend & APIs
-    aliases: []
+    aliases: [Nest, Nest.js]
   - id: skill_express_js
     name: Express.js
     category: Backend & APIs
@@ -149,11 +149,11 @@ skills:
   - id: skill_fastapi
     name: FastAPI
     category: Backend & APIs
-    aliases: []
+    aliases: [Fast API]
   - id: skill_rest_apis
     name: REST APIs
     category: Backend & APIs
-    aliases: []
+    aliases: [REST, REST API, RESTful API, RESTful APIs]
   - id: skill_webhooks
     name: Webhooks
     category: Backend & APIs
@@ -178,11 +178,11 @@ skills:
   - id: skill_next_js
     name: Next.js
     category: Frontend
-    aliases: []
+    aliases: [Next, NextJS]
   - id: skill_tailwind_css
     name: Tailwind CSS
     category: Frontend
-    aliases: []
+    aliases: [Tailwind]
   - id: skill_shadcn_ui
     name: shadcn/ui
     category: Frontend
@@ -223,11 +223,11 @@ skills:
   - id: skill_mongodb
     name: MongoDB
     category: Databases
-    aliases: []
+    aliases: [Mongo]
   - id: skill_postgresql
     name: PostgreSQL
     category: Databases
-    aliases: [Postgres]
+    aliases: [Postgres, PG]
   - id: skill_redis
     name: Redis
     category: Databases
@@ -260,7 +260,7 @@ skills:
   - id: skill_github_actions
     name: GitHub Actions
     category: DevOps & Cloud
-    aliases: []
+    aliases: [GHA]
   - id: skill_vercel
     name: Vercel
     category: DevOps & Cloud
@@ -268,7 +268,7 @@ skills:
   - id: skill_ci_cd
     name: CI/CD
     category: DevOps & Cloud
-    aliases: []
+    aliases: [CI, CD]
   - id: skill_prometheus
     name: Prometheus
     category: Observability
@@ -281,7 +281,7 @@ skills:
   - id: skill_oauth2
     name: OAuth2
     category: Auth & Security
-    aliases: []
+    aliases: [OAuth]
   - id: skill_jwt
     name: JWT
     category: Auth & Security
