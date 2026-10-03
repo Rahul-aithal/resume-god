@@ -7,9 +7,22 @@ Implemented.
 Resume God now produces an ATS-friendly, single-column A4 PDF with Typst and
 writes an audited match report in the same command.
 
-## Typst setup
+## Global CLI setup
 
-The project pins and installs Typst **0.15.1**:
+Install the CLI command once:
+
+```bash
+./scripts/install-cli.sh
+```
+
+The script installs `resume-god` with `uv tool`, adds the local Typst renderer,
+and runs `resume-god doctor`. Verify it from any directory:
+
+```bash
+resume-god doctor
+```
+
+For development only, the project-level Typst installer remains available:
 
 ```bash
 ./scripts/install-typst.sh

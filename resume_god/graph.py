@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .paths import default_profile_path
 from .tailor import load_profile
 
 GRAPH_SCHEMA_VERSION = 1
@@ -423,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     query_parser.add_argument("--limit", type=int, default=5)
 
     args = parser.parse_args(argv)
-    profile_path = args.profile or Path("master_profile.yaml")
+    profile_path = args.profile or default_profile_path()
     graph = ProfileGraph(load_profile(profile_path))
 
     if args.command == "load":

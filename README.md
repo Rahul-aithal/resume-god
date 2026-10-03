@@ -31,11 +31,22 @@ The repository also contains working convenience layers:
 
 ## Quick start
 
-Install Python dependencies and the local Typst binary:
+Install the global CLI command once:
 
 ```bash
-uv sync
-./scripts/install-typst.sh
+git clone https://github.com/Rahul-aithal/resume-god.git
+cd resume-god
+./scripts/install-cli.sh
+```
+
+The installer uses `uv tool`, installs the `resume-god` command on PATH, and adds
+the local Typst renderer. After installation, you do not need to enter the
+repository or `.venv`.
+
+Check the installation from anywhere:
+
+```bash
+resume-god doctor
 ```
 
 Generate a one-page PDF, match report, and machine-readable plan:
@@ -80,7 +91,7 @@ to the original source bullet.
 Build Markdown and HTML packets:
 
 ```bash
-uv run python -m resume_god.applications \
+resume-god applications \
   --manifest applications.yaml \
   --output-dir outputs/applications
 ```
@@ -88,11 +99,14 @@ uv run python -m resume_god.applications \
 Also generate one Typst PDF per application:
 
 ```bash
-uv run python -m resume_god.applications \
+resume-god applications \
   --manifest applications.yaml \
   --output-dir outputs/applications \
   --pdf
 ```
+
+Both `--manifest` and `--profile` are optional. They default to the reviewed
+files in the checkout or to `RESUME_GOD_MANIFEST` and `RESUME_GOD_PROFILE`.
 
 ## Local Neo4j graph
 
@@ -105,7 +119,7 @@ docker compose up -d neo4j
 Load the reviewed profile:
 
 ```bash
-uv run python -m resume_god.graph load \
+resume-god graph load \
   --profile master_profile.yaml \
   --uri bolt://localhost:7687 \
   --user neo4j \
@@ -115,7 +129,7 @@ uv run python -m resume_god.graph load \
 Offline graph and semantic queries work without Neo4j:
 
 ```bash
-uv run python -m resume_god.graph query \
+resume-god graph query \
   --skill Go \
   --project project_eventmcp \
   --search "LLM agent calendar tool" \
@@ -131,3 +145,27 @@ uv run python -m unittest discover -s tests -v
 The Neo4j load test is optional and runs when `RESUME_GOD_NEO4J_URI` and
 `RESUME_GOD_NEO4J_PASSWORD` are set. Typst PDF tests run when Typst is
 available through `TYPST_BIN`, `.venv/bin/typst`, or `PATH`.
+
+## Global CLI maintenance
+
+Update after pulling changes:
+
+```bash
+cd /path/to/resume-god
+git pull
+./scripts/install-cli.sh
+```
+
+Remove the global command:
+
+```bash
+/path/to/resume-god/scripts/uninstall-cli.sh
+```
+
+Environment overrides:
+
+```bash
+export RESUME_GOD_PROFILE=/path/to/master_profile.yaml
+export RESUME_GOD_MANIFEST=/path/to/applications.yaml
+export TYPST_BIN=/path/to/typst
+```

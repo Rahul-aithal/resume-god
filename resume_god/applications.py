@@ -16,6 +16,7 @@ from typing import Any
 
 import yaml
 
+from .paths import default_manifest_path, default_profile_path
 from .render import render_resume_html, render_resume_markdown
 from .rewrite import rewrite_plan
 from .tailor import (
@@ -348,8 +349,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Build audited application packets from a manifest"
     )
-    parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
-    parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--profile", type=Path, default=None)
+    parser.add_argument("--manifest", type=Path, default=None, help="Defaults to RESUME_GOD_MANIFEST or the checkout manifest")
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument(
         "--pdf",
@@ -363,12 +364,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--page-budget-chars", type=int, default=3200)
     args = parser.parse_args(argv)
 
-    profile = load_profile(args.profile)
-    manifest = yaml.safe_load(args.manifest.read_text(encoding="utf-8"))
+    profile_path = args.profile or default_profile_path()
+    manifest_path = args.manifest or default_manifest_path()
+    profile = load_profile(profile_path)
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     index = build_application_packets(
         profile,
         manifest,
-        manifest_path=args.manifest,
+        manifest_path=manifest_path,
         output_dir=args.output_dir,
         include_pdfs=args.pdf,
         typst_path=args.typst_bin,

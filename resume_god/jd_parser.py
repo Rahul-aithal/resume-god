@@ -8,6 +8,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Protocol
 
+from .paths import default_profile_path
 from .tailor import load_profile
 
 JD_PARSE_VERSION = 1
@@ -298,9 +299,6 @@ def _prompt(
     aliases = {
         skill["name"]: skill.get("aliases", []) for skill in profile["skills"]
     }
-    aliases = {
-        skill["name"]: skill.get("aliases", []) for skill in profile["skills"]
-    }
     return f"""Extract this job description into JSON.
 
 Return exactly these keys:
@@ -322,13 +320,13 @@ Job description:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Parse a JD into normalized JSON")
     parser.add_argument("job_description_file", type=Path)
-    parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
+    parser.add_argument("--profile", type=Path, default=None)
     parser.add_argument("--target-title")
     parser.add_argument("--provider", choices=("deterministic", "glm", "gemini"), default="deterministic")
     parser.add_argument("--json-output", type=Path)
     args = parser.parse_args(argv)
 
-    profile = load_profile(args.profile)
+    profile = load_profile(args.profile or default_profile_path())
     provider = None
     if args.provider != "deterministic":
         from .llm import make_provider

@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from . import __version__
+from .paths import default_profile_path
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
 from .render import render_resume_html, render_resume_markdown
 from .rewrite import rewrite_plan
@@ -19,7 +21,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
-    parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
+    parser.add_argument("--profile", type=Path, default=None, help="Defaults to RESUME_GOD_PROFILE or the reviewed checkout profile")
     description = parser.add_mutually_exclusive_group(required=True)
     description.add_argument("--job-description", help="Job description text")
     description.add_argument(
@@ -76,7 +78,7 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument("job_description_file", type=Path)
-    parser.add_argument("--profile", type=Path, default=Path("master_profile.yaml"))
+    parser.add_argument("--profile", type=Path, default=None, help="Defaults to RESUME_GOD_PROFILE or the reviewed checkout profile")
     parser.add_argument(
         "--target-title",
         help="Defaults to the role title parsed from the job description",
@@ -117,11 +119,41 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _doctor_main() -> int:
+    from .typst import typst_binary
+
+    profile_path = default_profile_path()
+    profile_ok = profile_path.is_file()
+    try:
+        typst_path = typst_binary()
+        typst_ok = True
+        typst_detail = str(typst_path)
+    except RuntimeError as error:
+        typst_ok = False
+        typst_detail = str(error)
+
+    print(f"resume-god {__version__}")
+    print(f"Profile: {profile_path} [{'PASS' if profile_ok else 'FAIL'}]")
+    print(f"Typst:   {typst_detail} [{'PASS' if typst_ok else 'FAIL'}]")
+    print(
+        "GLM key: "
+        + ("configured" if any(os.environ.get(k) for k in ('GLM_API_KEY','ZAI_API_KEY','Z_AI_API_KEY','ZHIPU_API_KEY')) else "not configured")
+    )
+    print(
+        "Gemini key: "
+        + ("configured" if any(os.environ.get(k) for k in ('GEMINI_API_KEY','GOOGLE_API_KEY')) else "not configured")
+    )
+    if not (profile_ok and typst_ok):
+        return 1
+    return 0
+
+
 def _tailor_main(argv: list[str]) -> int:
     parser = _build_tailor_parser()
     args = parser.parse_args(argv)
     job_description = args.job_description_file.read_text(encoding="utf-8")
-    profile = load_profile(args.profile)
+    profile_path = args.profile or default_profile_path()
+    profile = load_profile(profile_path)
 
     from .jd_parser import parse_job_description
 
@@ -208,6 +240,20 @@ def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments and arguments[0] == "tailor":
         return _tailor_main(arguments[1:])
+    if arguments and arguments[0] == "doctor":
+        return _doctor_main()
+    if arguments and arguments[0] == "applications":
+        from .applications import main as applications_main
+
+        return applications_main(arguments[1:])
+    if arguments and arguments[0] == "graph":
+        from .graph import main as graph_main
+
+        return graph_main(arguments[1:])
+    if arguments and arguments[0] == "parse-jd":
+        from .jd_parser import main as parse_jd_main
+
+        return parse_jd_main(arguments[1:])
 
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -220,7 +266,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         job_description = args.job_description
 
-    profile = load_profile(args.profile)
+    profile_path = args.profile or default_profile_path()
+    profile = load_profile(profile_path)
     from .jd_parser import parse_job_description
 
     parser_provider = None
