@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "resume-god"
 version = "0.3.0"
@@ -5,5 +9,15 @@ description = "Profile-driven resume tooling"
 requires-python = ">=3.12"
 dependencies = [
     "neo4j>=5.28",
+    "pypdf>=6.0",
     "PyYAML>=6.0",
 ]
+
+[project.scripts]
+resume-god = "resume_god.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.setuptools]
+packages = ["resume_god"]

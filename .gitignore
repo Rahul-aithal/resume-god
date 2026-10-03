@@ -16,3 +16,4 @@ dist/
 outputs/
 output/
 *.pdf
+*.egg-info/
