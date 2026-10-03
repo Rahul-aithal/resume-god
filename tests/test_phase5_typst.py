@@ -67,8 +67,8 @@ class TypstRenderingTests(unittest.TestCase):
                     self.assertEqual(len(reader.pages), 1)
                     extracted = reader.pages[0].extract_text() or ""
                     self.assertIn("Rahul Aithal", extracted)
-                    self.assertIn("PROFESSIONAL SUMMARY", extracted)
-                    self.assertIn("SKILLS", extracted)
+                    self.assertIn("Professional Summary", extracted)
+                    self.assertIn("Technical Skills", extracted)
 
     def test_pdf_overflow_trims_lowest_ranked_bullets(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -113,11 +113,17 @@ class TypstRenderingTests(unittest.TestCase):
             self.profile,
         )
         source = render_resume_typst(plan, self.profile)
+        self.assertIn('@preview/basic-resume:0.2.9', source)
+        self.assertIn('#show: resume.with(', source)
         self.assertIn('paper: "a4"', source)
         self.assertIn("New Computer Modern", source)
-        self.assertIn("#section[Professional Summary]", source)
-        self.assertIn("#section[Skills]", source)
-        self.assertNotIn("#grid(\n  columns: (1fr, 1fr)", source)
+        self.assertIn("== Professional Summary", source)
+        self.assertIn("== Technical Skills", source)
+        self.assertIn("#work(", source)
+        self.assertIn("#project(", source)
+        self.assertIn("#edu(", source)
+        self.assertNotIn("#let section(title)", source)
+        self.assertNotIn("#entry-heading", source)
 
     def test_missing_typst_binary_has_actionable_error(self):
         if Path(".venv/bin/typst").exists() and not shutil.which("typst"):
