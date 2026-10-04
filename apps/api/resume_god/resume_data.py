@@ -93,8 +93,6 @@ def select_resume_bullets(
     Unknown or duplicate ids are dropped; shortfalls are refilled from the
     deterministic ranking so the count contract always holds.
     """
-    from .llm import LLMError  # local import: llm must not depend on this module
-
     pack = build_evidence_pack(plan, profile, candidate_pool=candidate_pool)
     pool_ids = [item["achievement_id"] for item in pack["candidate_bullets"]]
     pool_set = set(pool_ids)
@@ -111,7 +109,7 @@ def select_resume_bullets(
             else:
                 fallback_error = "LLM selection was not a JSON list"
         except Exception as error:  # network/auth/shape failure -> deterministic
-            fallback_error = str(error) if not isinstance(error, LLMError) else str(error)
+            fallback_error = str(error)
 
     selected: list[str] = []
     dropped: list[str] = []

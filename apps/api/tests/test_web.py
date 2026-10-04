@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from resume_god.tailor import load_profile
 from resume_god.web import create_app
 
 
@@ -56,8 +55,6 @@ class WebHardeningTests(unittest.TestCase):
             self.assertEqual(bad_number.status_code, 400)
 
     def test_tailor_writes_unique_dirs_and_records_role(self):
-        profile = load_profile(PROFILE_PATH)
-        _ = profile
         with tempfile.TemporaryDirectory() as directory:
             client = make_client(directory)
             jd = "We need Python and FastAPI engineers. " * 10

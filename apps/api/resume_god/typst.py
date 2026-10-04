@@ -95,8 +95,8 @@ TEMPLATE_DATA_FILENAME = "resume-data.json"
 
 
 def _drop_bullet_from_data(data: dict[str, Any], achievement_id: str) -> bool:
-    """Remove one bullet (and its id) from resume-data sections."""
-    for section in data.get("sections", []):
+    """Remove one bullet (and its id); drop sections left with no bullets."""
+    for section in list(data.get("sections", [])):
         ids = section.get("achievement_ids", [])
         if achievement_id in ids:
             index = ids.index(achievement_id)
@@ -104,6 +104,8 @@ def _drop_bullet_from_data(data: dict[str, Any], achievement_id: str) -> bool:
             bullets = section.get("bullets", [])
             if index < len(bullets):
                 del bullets[index]
+            if not section.get("bullets"):
+                data["sections"].remove(section)
             return True
     return False
 

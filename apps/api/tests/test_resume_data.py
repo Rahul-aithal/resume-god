@@ -10,6 +10,7 @@ from resume_god.resume_data import (
     select_resume_bullets,
     validate_resume_data,
 )
+from resume_god.typst import _drop_bullet_from_data
 from resume_god.rewrite import rewrite_plan
 from resume_god.tailor import build_tailoring_plan, load_profile
 
@@ -137,6 +138,28 @@ class ResumeDataTests(unittest.TestCase):
         data["version"] = 999
         report = validate_resume_data(data, self.profile)
         self.assertTrue(any("version" in issue for issue in report["issues"]))
+
+    def test_drop_bullet_removes_emptied_sections(self):
+        data = {
+            "sections": [
+                {
+                    "kind": "project",
+                    "achievement_ids": ["solo"],
+                    "bullets": ["Solo bullet."],
+                },
+                {
+                    "kind": "experience",
+                    "achievement_ids": ["a", "b"],
+                    "bullets": ["A.", "B."],
+                },
+            ]
+        }
+        self.assertTrue(_drop_bullet_from_data(data, "solo"))
+        self.assertEqual(len(data["sections"]), 1)
+        self.assertEqual(data["sections"][0]["achievement_ids"], ["a", "b"])
+        self.assertTrue(_drop_bullet_from_data(data, "a"))
+        self.assertEqual(data["sections"][0]["bullets"], ["B."])
+        self.assertFalse(_drop_bullet_from_data(data, "missing"))
 
 
 if __name__ == "__main__":

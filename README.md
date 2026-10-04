@@ -135,7 +135,7 @@ resume-god render-pdf \
 `--select-provider auto|glm|gemini|deterministic` controls who picks the
 bullets from graph-ranked evidence (default: LLM when a key exists, else
 deterministic ranking). `--data-output` keeps the validated
-`resume-data.json` that the static template (`resume_god/template/resume.typ`)
+`resume-data.json` that the static template (`apps/api/resume_god/template/resume.typ`)
 imports — recompile it any time with plain `typst compile`.
 
 The equivalent module invocation (from `apps/api/`):
@@ -153,6 +153,7 @@ offline deterministic path runs — never a crash.
 
 - JD parsing: `--parser-provider auto|glm|gemini|deterministic`
 - Bullet rewriting: `--rewrite-provider auto|glm|gemini|deterministic`
+- Bullet selection: `--select-provider auto|glm|gemini|deterministic`
 
 Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and/or `GLM_API_KEY` (or
 `ZAI_API_KEY`), optionally in a `.env` file. `RESUME_GOD_LLM_ORDER`

@@ -9,10 +9,10 @@ writes an audited match report in the same command.
 
 ## Global CLI setup
 
-Install the CLI command once:
+Install the CLI command once (from the repo root):
 
 ```bash
-./scripts/install-cli.sh
+./apps/api/scripts/install-cli.sh
 ```
 
 The script installs `resume-god` with `uv tool`, adds the local Typst renderer,
@@ -25,7 +25,7 @@ resume-god doctor
 For development only, the project-level Typst installer remains available:
 
 ```bash
-./scripts/install-typst.sh
+./apps/api/scripts/install-typst.sh
 ```
 
 The script installs `.venv/bin/typst`. `TYPST_BIN` can override that path.
@@ -46,7 +46,8 @@ The command writes:
 - `outputs/resume-report.md`
 - `outputs/resume-plan.json`
 
-`resume-god` is installed by `uv sync`. The equivalent module command is:
+`resume-god` is installed by `uv sync`. The equivalent module command is
+(run from `apps/api/`):
 
 ```bash
 uv run python -m resume_god.cli tailor fixtures/jds/jd-1.txt \

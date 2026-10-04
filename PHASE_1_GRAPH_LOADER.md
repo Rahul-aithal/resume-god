@@ -26,8 +26,10 @@ truth; deleting the Neo4j volume never loses resume facts.
 ## Local Neo4j
 
 ```bash
-docker compose up -d neo4j
+docker compose --profile graph up -d neo4j
 
+# Python commands run from apps/api/:
+cd apps/api
 uv run python -m resume_god.graph load \
   --profile master_profile.yaml \
   --uri bolt://localhost:7687 \
