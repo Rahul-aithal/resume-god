@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+:root {
+  --brand-primary: #4f46e5;
+  --brand-background: #ffffff;
+  --brand-foreground: #111827;
+}
