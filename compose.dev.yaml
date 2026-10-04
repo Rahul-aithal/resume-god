@@ -1,0 +1,35 @@
+# Local development overrides: live reload, host ports, debug access.
+# Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
+services:
+  db:
+    ports:
+      # Dev only — never expose postgres in production.
+      - "5432:5432"
+
+  api:
+    # Dev runs as root so the bind-mounted checkout + venv volume stay writable.
+    user: root
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./apps/api:/app
+      # Keep the container venv intact when bind-mounting source.
+      - api-venv:/app/.venv
+    working_dir: /app
+    command: uv run python -m resume_god.cli web --host 0.0.0.0 --port 8000
+
+  web:
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/repo
+      - /repo/node_modules
+      - /repo/apps/web/node_modules
+      - /repo/packages/api-client/node_modules
+    working_dir: /repo/apps/web
+    command: sh -c "bun install && bun run dev -- --host --port 5173"
+    depends_on:
+      - api
+
+volumes:
+  api-venv:

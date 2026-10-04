@@ -1,0 +1,13 @@
+# Docker build contexts (root). Keep images small: no venvs, DBs, or outputs.
+.venv/
+node_modules/
+outputs/
+.git/
+.env
+*.db
+.turbo/
+dist/
+coverage/
+__pycache__/
+*.pyc
+.pytest_cache/

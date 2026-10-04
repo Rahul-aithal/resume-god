@@ -1,0 +1,73 @@
+# Production-like base. Dev overrides live in compose.dev.yaml.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: resume-god-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-resume_god}
+      POSTGRES_USER: ${POSTGRES_USER:-resume_god}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-resume-god-local}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-resume_god}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: resume-god-api
+    env_file:
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      # Phase B will use DATABASE_URL; the tracker still uses SQLite today.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-resume_god}:${POSTGRES_PASSWORD:-resume-god-local}@db:5432/${POSTGRES_DB:-resume_god}
+      RESUME_GOD_DB: /data/companies.db
+    volumes:
+      - appdata:/data
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: resume-god-web
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+
+  # Optional local knowledge-graph database (Phase 1 Neo4j loader).
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: resume-god-neo4j
+    profiles: ["graph"]
+    environment:
+      NEO4J_AUTH: neo4j/resume-god-local
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+      NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata:
+  appdata:
+  neo4j-data:
+  neo4j-logs:
