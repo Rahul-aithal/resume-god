@@ -237,6 +237,74 @@ def resolve_or_none(name: str | None) -> tuple[Any | None, str, str | None]:
         return None, requested, str(error)
 
 
+def resolve_provider_list(
+    name: str | None, *, order: list[str] | None = None
+) -> tuple[list[Any], str, str | None]:
+    """Ordered providers to attempt for one pipeline step.
+
+    - "deterministic"/None → ([], ...) — fully offline.
+    - "auto" → every keyed provider in order (may be empty).
+    - explicit with key → [it] plus the other keyed providers as fallback.
+    - explicit without key / unknown → ([], name, error), as before.
+
+    ``order`` overrides the RESUME_GOD_LLM_ORDER sequence (per-user
+    settings); entries are filtered to known providers.
+    """
+    requested = name or "deterministic"
+    sequence = [item for item in (order or default_provider_order()) if item in ("gemini", "glm")] or [
+        item for item in default_provider_order() if item in ("gemini", "glm")
+    ]
+    if name is None or name == "deterministic":
+        return [], requested, None
+    if name == "auto":
+        providers: list[Any] = []
+        for candidate in sequence:
+            if _has_key(candidate):
+                try:
+                    providers.append(make_provider(candidate))
+                except LLMError:
+                    continue
+        return providers, requested, None
+    if name in ("glm", "gemini"):
+        try:
+            first = make_provider(name)
+        except (LLMError, ValueError) as error:
+            return [], requested, str(error)
+        rest = []
+        for candidate in sequence:
+            if candidate != name and _has_key(candidate):
+                try:
+                    rest.append(make_provider(candidate))
+                except LLMError:
+                    continue
+        return [first, *rest], requested, None
+    return [], requested, (
+        f"Unknown LLM provider: {name}. Use {', '.join(PROVIDER_CHOICES)}."
+    )
+
+
+def attempt_each(providers: list[Any], run):
+    """Try run(provider) in order; fall back to run(None).
+
+    ``run`` returns (result, ok, detail) where detail is a human-readable
+    failure note ("" on success or when there is nothing to say). Returns
+    (result, used_name, error_notes) where used_name is the winning
+    provider or "deterministic".
+    """
+    errors: list[str] = []
+    for provider in providers:
+        result, ok, detail = run(provider)
+        if ok:
+            return result, provider.name, errors
+        errors.append(
+            f"{provider.name} failed" + (f": {detail}" if detail else "")
+        )
+    result, _, detail = run(None)
+    if detail:
+        errors.append(f"deterministic: {detail}")
+    return result, "deterministic", errors
+
+
 def active_provider_label(name: str | None) -> str:
     """Human-readable label for what auto resolution would use (no calls)."""
     if name in (None, "deterministic"):

@@ -77,7 +77,16 @@ def create_app(
     from .api import jobs as api_jobs
 
     api_jobs.PROFILE_PATH = Path(profile_path)
+    api_jobs.OUTPUTS_DIR = Path(outputs_dir)
     app.include_router(api_jobs.router)
+
+    from .api.auth import build_oauth, router as auth_router
+    from .api.auth import SessionMiddleware as _SessionMiddleware
+    from .api.auth import session_secret as _session_secret
+
+    app.state.oauth = build_oauth()
+    app.add_middleware(_SessionMiddleware, secret_key=_session_secret())
+    app.include_router(auth_router)
 
     @contextmanager
     def db_session() -> Iterator[Any]:
@@ -208,15 +217,21 @@ def create_app(
         summary = str(form.get("summary", "") or "").strip() or None
         font = str(form.get("font", "") or "").strip() or None
         from .jd_parser import parse_job_description
-        from .llm import resolve_or_none
+        from .llm import attempt_each, resolve_provider_list
 
         try:
             provider_choice = str(form.get("provider", "auto") or "auto")
-            provider, _, _ = resolve_or_none(provider_choice)
+            parser_providers, _, _ = resolve_provider_list(provider_choice)
             profile = load_profile(profile_path)
-            parsed = parse_job_description(
-                profile, jd_text, provider=provider, target_title=target_title
-            )
+
+            def _parse(provider):
+                parsed = parse_job_description(
+                    profile, jd_text, provider=provider, target_title=target_title
+                )
+                ok = parsed.get("provider", "deterministic") != "deterministic"
+                return parsed, ok, parsed.get("provider_fallback_error") or ""
+
+            parsed, _, _ = attempt_each(parser_providers, _parse)
             plan = build_tailoring_plan(
                 profile, jd_text, target_title=target_title,
                 max_achievements=max_achievements,
@@ -229,16 +244,33 @@ def create_app(
                 validate_resume_data,
             )
 
-            select_provider, _, _ = resolve_or_none(provider_choice)
-            selection = select_resume_bullets(
-                plan, profile, provider=select_provider,
-                max_select=max_achievements,
-            )
+            select_providers, _, _ = resolve_provider_list(provider_choice)
+
+            def _select(provider):
+                selection = select_resume_bullets(
+                    plan, profile, provider=provider,
+                    max_select=max_achievements,
+                )
+                ok = selection["provider"] != "deterministic"
+                return (
+                    selection, ok, selection.get("fallback_error") or ""
+                )
+
+            selection, _, _ = attempt_each(select_providers, _select)
             plan = narrow_plan_ranking(plan, selection["selected_ids"])
-            rewrite_provider, _, _ = resolve_or_none(provider_choice)
-            plan = rewrite_plan(
-                plan, profile, provider=rewrite_provider, summary=summary
-            )
+            rewrite_providers, _, _ = resolve_provider_list(provider_choice)
+
+            def _rewrite(provider):
+                rewritten = rewrite_plan(
+                    plan, profile, provider=provider, summary=summary
+                )
+                ok = rewritten.get("rewrite_provider", "deterministic") != "deterministic"
+                return (
+                    rewritten, ok,
+                    rewritten.get("rewrite_provider_fallback_error") or "",
+                )
+
+            plan, _, _ = attempt_each(rewrite_providers, _rewrite)
             resume_data = build_resume_data(
                 plan, profile, font=font, summary=summary
             )

@@ -76,3 +76,52 @@ export interface ReviewResult {
   rejected: string[];
   rewriteSummary: string;
 }
+
+/** M1 JSON API shapes (plan passed by value). */
+
+export type PlanJson = Record<string, unknown>;
+
+export interface CoverageRow {
+  Requirement?: string;
+  name?: string;
+  Priority?: string;
+  priority?: string;
+  Status?: string;
+  status?: string;
+  kind?: string;
+}
+
+export interface ProviderStage {
+  requested: string;
+  used: string;
+  fallback_error?: string | null;
+}
+
+export interface TailorResponse {
+  plan: PlanJson;
+  skill_diff: PlanJson;
+  providers: Record<string, ProviderStage> & { artifact?: string };
+}
+
+export interface ReviewResponse {
+  plan: PlanJson;
+  rejected_edits: string[];
+  resume_data: PlanJson;
+  validation: {
+    dropped_bullets: string[];
+    fallback_bullets: string[];
+    issues: string[];
+  };
+}
+
+export interface ProvidersStatus {
+  order: string[];
+  auto: string;
+  models: Record<string, string>;
+}
+
+export interface MeInfo {
+  id: number;
+  email: string;
+  display_name: string;
+}

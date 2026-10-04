@@ -206,22 +206,31 @@ def _tailor_main(argv: list[str]) -> int:
 
     from .jd_parser import parse_job_description
 
-    from .llm import resolve_or_none
+    from .llm import attempt_each, resolve_provider_list
 
-    parser_provider, parser_req, parser_req_error = resolve_or_none(
+    parser_providers, parser_req, parser_req_error = resolve_provider_list(
         args.parser_provider
     )
-    parsed = parse_job_description(
-        profile,
-        job_description,
-        provider=parser_provider,
-        target_title=args.target_title,
-    )
+
+    def _parse(provider):
+        parsed = parse_job_description(
+            profile,
+            job_description,
+            provider=provider,
+            target_title=args.target_title,
+        )
+        ok = parsed.get("provider", "deterministic") != "deterministic"
+        return parsed, ok, parsed.get("provider_fallback_error") or ""
+
+    parsed, _, parser_chain = attempt_each(parser_providers, _parse)
     # Stamp what was requested (auto/deterministic/explicit) since the
     # offline branch of the parser cannot know the CLI choice.
     parsed["provider_requested"] = parser_req
-    if parser_req_error and not parsed.get("provider_fallback_error"):
-        parsed["provider_fallback_error"] = parser_req_error
+    chain_error = "; ".join(
+        [error for error in [parser_req_error, *parser_chain] if error]
+    )
+    if chain_error and not parsed.get("provider_fallback_error"):
+        parsed["provider_fallback_error"] = chain_error
     target_title = args.target_title or parsed["role_title"]
 
     plan = build_tailoring_plan(
@@ -231,12 +240,6 @@ def _tailor_main(argv: list[str]) -> int:
         max_achievements=args.max_achievements,
         parsed_job_description=parsed,
     )
-    rewrite_provider, rewrite_req, rewrite_req_error = resolve_or_none(
-        args.rewrite_provider
-    )
-    select_provider, select_req, select_req_error = resolve_or_none(
-        args.select_provider
-    )
     from .resume_data import (
         build_resume_data,
         narrow_plan_ranking,
@@ -244,29 +247,56 @@ def _tailor_main(argv: list[str]) -> int:
         validate_resume_data,
     )
 
-    # Stage 3 of the pipeline: the LLM selects from graph-ranked evidence.
-    selection = select_resume_bullets(
-        plan,
-        profile,
-        provider=select_provider,
-        max_select=args.max_achievements,
+    rewrite_providers, rewrite_req, rewrite_req_error = resolve_provider_list(
+        args.rewrite_provider
     )
+    select_providers, select_req, select_req_error = resolve_provider_list(
+        args.select_provider
+    )
+
+    # Stage 3 of the pipeline: the LLM selects from graph-ranked evidence.
+    def _select(provider):
+        selection = select_resume_bullets(
+            plan,
+            profile,
+            provider=provider,
+            max_select=args.max_achievements,
+        )
+        ok = selection["provider"] != "deterministic"
+        return selection, ok, selection.get("fallback_error") or ""
+
+    selection, _, select_chain = attempt_each(select_providers, _select)
     plan = narrow_plan_ranking(plan, selection["selected_ids"])
     plan["llm_selection"] = {
         **selection,
         "requested": select_req,
-        "fallback_error": select_req_error or selection["fallback_error"],
+        "fallback_error": "; ".join(
+            [error for error in [select_req_error, *select_chain] if error]
+        ) or None,
     }
-    plan = rewrite_plan(
-        plan,
-        profile,
-        provider=rewrite_provider,
-        summary=args.summary,
-        page_budget_chars=args.page_budget_chars,
-    )
+
+    def _rewrite(provider):
+        rewritten = rewrite_plan(
+            plan,
+            profile,
+            provider=provider,
+            summary=args.summary,
+            page_budget_chars=args.page_budget_chars,
+        )
+        ok = rewritten.get("rewrite_provider", "deterministic") != "deterministic"
+        return (
+            rewritten,
+            ok,
+            rewritten.get("rewrite_provider_fallback_error") or "",
+        )
+
+    plan, _, rewrite_chain = attempt_each(rewrite_providers, _rewrite)
     plan["rewrite_provider_requested"] = rewrite_req
-    if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
-        plan["rewrite_provider_fallback_error"] = rewrite_req_error
+    rewrite_chain_error = "; ".join(
+        [error for error in [rewrite_req_error, *rewrite_chain] if error]
+    )
+    if rewrite_chain_error and not plan.get("rewrite_provider_fallback_error"):
+        plan["rewrite_provider_fallback_error"] = rewrite_chain_error
     # Stage 4: deterministic transform to the Typst-consumed schema, then the
     # grounding gate over the LLM-authored data.
     resume_data = build_resume_data(
@@ -713,20 +743,29 @@ def main(argv: list[str] | None = None) -> int:
     profile_path = args.profile or default_profile_path()
     profile = load_profile(profile_path)
     from .jd_parser import parse_job_description
-    from .llm import resolve_or_none
+    from .llm import attempt_each, resolve_provider_list
 
-    parser_provider, parser_req, parser_req_error = resolve_or_none(
+    parser_providers, parser_req, parser_req_error = resolve_provider_list(
         args.parser_provider
     )
-    parsed = parse_job_description(
-        profile,
-        job_description,
-        provider=parser_provider,
-        target_title=args.target_title,
-    )
+
+    def _parse(provider):
+        parsed = parse_job_description(
+            profile,
+            job_description,
+            provider=provider,
+            target_title=args.target_title,
+        )
+        ok = parsed.get("provider", "deterministic") != "deterministic"
+        return parsed, ok, parsed.get("provider_fallback_error") or ""
+
+    parsed, _, parser_chain = attempt_each(parser_providers, _parse)
     parsed["provider_requested"] = parser_req
-    if parser_req_error and not parsed.get("provider_fallback_error"):
-        parsed["provider_fallback_error"] = parser_req_error
+    chain_error = "; ".join(
+        [error for error in [parser_req_error, *parser_chain] if error]
+    )
+    if chain_error and not parsed.get("provider_fallback_error"):
+        parsed["provider_fallback_error"] = chain_error
     plan = build_tailoring_plan(
         profile,
         job_description,
@@ -734,19 +773,33 @@ def main(argv: list[str] | None = None) -> int:
         max_achievements=args.max_achievements,
         parsed_job_description=parsed,
     )
-    rewrite_provider, rewrite_req, rewrite_req_error = resolve_or_none(
+
+    rewrite_providers, rewrite_req, rewrite_req_error = resolve_provider_list(
         args.rewrite_provider
     )
-    plan = rewrite_plan(
-        plan,
-        profile,
-        provider=rewrite_provider,
-        summary=args.summary,
-        page_budget_chars=args.page_budget_chars,
-    )
+
+    def _rewrite(provider):
+        rewritten = rewrite_plan(
+            plan,
+            profile,
+            provider=provider,
+            summary=args.summary,
+            page_budget_chars=args.page_budget_chars,
+        )
+        ok = rewritten.get("rewrite_provider", "deterministic") != "deterministic"
+        return (
+            rewritten,
+            ok,
+            rewritten.get("rewrite_provider_fallback_error") or "",
+        )
+
+    plan, _, rewrite_chain = attempt_each(rewrite_providers, _rewrite)
     plan["rewrite_provider_requested"] = rewrite_req
-    if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
-        plan["rewrite_provider_fallback_error"] = rewrite_req_error
+    rewrite_chain_error = "; ".join(
+        [error for error in [rewrite_req_error, *rewrite_chain] if error]
+    )
+    if rewrite_chain_error and not plan.get("rewrite_provider_fallback_error"):
+        plan["rewrite_provider_fallback_error"] = rewrite_chain_error
 
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)

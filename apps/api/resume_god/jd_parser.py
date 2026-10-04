@@ -351,17 +351,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     profile = load_profile(args.profile or default_profile_path())
-    from .llm import resolve_or_none
+    from .llm import attempt_each, resolve_provider_list
 
-    provider, requested, req_error = resolve_or_none(args.provider)
+    providers, requested, req_error = resolve_provider_list(args.provider)
     if req_error:
         print(f"LLM provider fallback ({requested}): {req_error}", file=sys.stderr)
-    parsed = parse_job_description(
-        profile,
-        args.job_description_file.read_text(encoding="utf-8"),
-        provider=provider,
-        target_title=args.target_title,
-    )
+
+    def _parse(provider):
+        parsed = parse_job_description(
+            profile,
+            args.job_description_file.read_text(encoding="utf-8"),
+            provider=provider,
+            target_title=args.target_title,
+        )
+        ok = parsed.get("provider", "deterministic") != "deterministic"
+        return parsed, ok, parsed.get("provider_fallback_error") or ""
+
+    parsed, used, chain = attempt_each(providers, _parse)
+    parsed["provider_requested"] = requested
+    for note in chain:
+        print(f"LLM provider fallback: {note}", file=sys.stderr)
+    print(f"JD parsing: requested {requested}, used {used}", file=sys.stderr)
     output = json.dumps(parsed, ensure_ascii=False, indent=2) + "\n"
     if args.json_output:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)

@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
+from .auth import require_user
 from ..diff import build_skill_diff
 from ..jd_parser import parse_job_description
-from ..llm import active_provider_label, resolve_or_none
+from ..llm import (
+    active_provider_label,
+    attempt_each,
+    resolve_provider_list,
+)
 from ..rewrite import revalidate_plan_rewrites, rewrite_plan
 from ..resume_data import (
     build_resume_data,
@@ -33,8 +39,96 @@ from .schemas import (
 
 router = APIRouter(prefix="/api")
 
-# Single-user resolve hook; Phase B3 swaps this for the session user.
+# Wired by create_app (single-user file fallback); DB profile wins per user.
 PROFILE_PATH: Path | None = None
+OUTPUTS_DIR: Path | None = None
+
+DEFAULT_SETTINGS = {
+    "llm_order": "gemini,glm",
+    "gemini_model": "gemini-3-flash-preview",
+    "glm_model": "glm-4.6",
+    "default_font": "Calibri",
+}
+
+
+def _db_user(session, claims: dict[str, Any]):
+    """Fetch the session user row, creating it for first-seen claims."""
+    from ..db import User
+
+    user = session.get(User, claims["id"])
+    if user is None:
+        user = User(
+            email=str(claims.get("email") or "unknown@local"),
+            display_name=str(claims.get("display_name") or ""),
+        )
+        session.add(user)
+        session.commit()
+    return user
+
+
+def _user_settings(user: dict[str, Any]) -> dict[str, Any]:
+    """Per-user settings with safe defaults on fresh/unmigrated DBs."""
+    try:
+        from ..db import make_session_factory
+        from ..db import UserSettings
+
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            row = session.query(UserSettings).filter_by(user_id=db_user.id).one_or_none()
+            if row is not None:
+                return {
+                    "llm_order": row.llm_order,
+                    "gemini_model": row.gemini_model,
+                    "glm_model": row.glm_model,
+                    "default_font": row.default_font,
+                }
+    except Exception:
+        pass
+    return dict(DEFAULT_SETTINGS)
+
+
+def _request_profile(user: dict[str, Any]) -> dict[str, Any]:
+    """DB active profile for the user, else the configured file."""
+    try:
+        from ..db import make_session_factory
+        from ..profiles import get_active_profile
+
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            active = get_active_profile(session, db_user.id)
+            if active:
+                return active
+    except Exception:
+        pass
+    return get_profile_dict()
+
+
+def _persist_artifact(
+    user: dict[str, Any], kind: str, filename: str, content: bytes
+) -> str:
+    """Store a generated file and registry row; returns the relative path.
+
+    Best-effort: returns "" when outputs are unconfigured or the app DB
+    is unavailable (fresh checkouts keep working).
+    """
+    if OUTPUTS_DIR is None:
+        return ""
+    subdir = OUTPUTS_DIR / "api" / str(user.get("id", "unknown"))
+    subdir.mkdir(parents=True, exist_ok=True)
+    path = subdir / f"{uuid.uuid4().hex[:8]}-{filename}"
+    path.write_bytes(content)
+    try:
+        from ..db import Artifact, make_session_factory
+
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            session.add(
+                Artifact(user_id=db_user.id, kind=kind, path=str(path))
+            )
+            session.commit()
+    except Exception:
+        pass
+    return str(path)
 
 
 def get_profile_dict() -> dict[str, Any]:
@@ -46,11 +140,6 @@ def get_profile_dict() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(error))
 
 
-def _resolve(requested: str):
-    provider, requested_name, fallback_error = resolve_or_none(requested)
-    return provider, requested_name, fallback_error
-
-
 def _tailor_core(
     profile: dict[str, Any],
     jd_text: str,
@@ -60,17 +149,29 @@ def _tailor_core(
     max_achievements: int,
     summary: str | None,
     font: str | None,
+    order: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    parser_provider, parser_req, parser_req_error = _resolve(provider_choice)
-    try:
+    parser_providers, parser_req, parser_req_error = resolve_provider_list(
+        provider_choice, order=order
+    )
+
+    def _parse(provider):
         parsed = parse_job_description(
-            profile, jd_text, provider=parser_provider, target_title=target_title
+            profile, jd_text, provider=provider, target_title=target_title
         )
+        ok = parsed.get("provider", "deterministic") != "deterministic"
+        return parsed, ok, parsed.get("provider_fallback_error") or ""
+
+    try:
+        parsed, _, parser_chain = attempt_each(parser_providers, _parse)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     parsed["provider_requested"] = parser_req
-    if parser_req_error and not parsed.get("provider_fallback_error"):
-        parsed["provider_fallback_error"] = parser_req_error
+    chain_error = "; ".join(
+        [error for error in [parser_req_error, *parser_chain] if error]
+    )
+    if chain_error and not parsed.get("provider_fallback_error"):
+        parsed["provider_fallback_error"] = chain_error
 
     plan = build_tailoring_plan(
         profile,
@@ -79,26 +180,52 @@ def _tailor_core(
         max_achievements=max_achievements,
         parsed_job_description=parsed,
     )
-    select_provider, select_req, select_req_error = _resolve(provider_choice)
-    selection = select_resume_bullets(
-        plan, profile, provider=select_provider, max_select=max_achievements
+    select_providers, select_req, select_req_error = resolve_provider_list(
+        provider_choice, order=order
     )
+
+    def _select(provider):
+        selection = select_resume_bullets(
+            plan, profile, provider=provider, max_select=max_achievements
+        )
+        ok = selection["provider"] != "deterministic"
+        return selection, ok, selection.get("fallback_error") or ""
+
+    selection, _, select_chain = attempt_each(select_providers, _select)
     plan = narrow_plan_ranking(plan, selection["selected_ids"])
     plan["llm_selection"] = {
         **selection,
         "requested": select_req,
-        "fallback_error": select_req_error or selection["fallback_error"],
-    }
-    rewrite_provider, rewrite_req, rewrite_req_error = _resolve(provider_choice)
-    try:
-        plan = rewrite_plan(
-            plan, profile, provider=rewrite_provider, summary=summary
+        "fallback_error": "; ".join(
+            [error for error in [select_req_error, *select_chain] if error]
         )
+        or None,
+    }
+    rewrite_providers, rewrite_req, rewrite_req_error = resolve_provider_list(
+        provider_choice, order=order
+    )
+
+    def _rewrite(provider):
+        rewritten = rewrite_plan(
+            plan, profile, provider=provider, summary=summary
+        )
+        ok = rewritten.get("rewrite_provider", "deterministic") != "deterministic"
+        return (
+            rewritten,
+            ok,
+            rewritten.get("rewrite_provider_fallback_error") or "",
+        )
+
+    try:
+        plan, _, rewrite_chain = attempt_each(rewrite_providers, _rewrite)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     plan["rewrite_provider_requested"] = rewrite_req
-    if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
-        plan["rewrite_provider_fallback_error"] = rewrite_req_error
+    rewrite_chain_error = "; ".join(
+        [error for error in [rewrite_req_error, *rewrite_chain] if error]
+    )
+    if rewrite_chain_error and not plan.get("rewrite_provider_fallback_error"):
+        plan["rewrite_provider_fallback_error"] = rewrite_chain_error
     diff = build_skill_diff(plan, profile)
     providers = {
         "parsing": {
@@ -138,8 +265,14 @@ def providers() -> dict[str, Any]:
 
 
 @router.post("/tailor", response_model=TailorResponse)
-def tailor(body: TailorRequest) -> dict[str, Any]:
-    profile = get_profile_dict()
+def tailor(
+    body: TailorRequest, user: dict[str, Any] = Depends(require_user)
+) -> dict[str, Any]:
+    import json as _json
+
+    profile = _request_profile(user)
+    settings = _user_settings(user)
+    order = [item.strip() for item in settings["llm_order"].split(",") if item.strip()]
     plan, diff, providers = _tailor_core(
         profile,
         body.jd_text,
@@ -147,16 +280,33 @@ def tailor(body: TailorRequest) -> dict[str, Any]:
         provider_choice=body.provider,
         max_achievements=body.max_achievements,
         summary=body.summary,
-        font=body.font,
+        font=body.font or settings["default_font"],
+        order=order,
     )
-    return {"plan": plan, "skill_diff": diff, "providers": providers}
+    path = _persist_artifact(
+        user,
+        "plan",
+        "resume-plan.json",
+        _json.dumps(
+            {**plan, "skill_diff": diff, "providers": providers},
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8"),
+    )
+    return {
+        "plan": plan,
+        "skill_diff": diff,
+        "providers": {**providers, "artifact": path},
+    }
 
 
 @router.post("/review", response_model=ReviewResponse)
-def review(body: ReviewRequest) -> dict[str, Any]:
+def review(
+    body: ReviewRequest, user: dict[str, Any] = Depends(require_user)
+) -> dict[str, Any]:
     from copy import deepcopy
 
-    profile = get_profile_dict()
+    profile = _request_profile(user)
     plan = deepcopy(body.plan)
     for achievement_id, text in body.edits.rewritten_text.items():
         record = plan.get("rewrites", {}).get(achievement_id)
@@ -188,10 +338,12 @@ def review(body: ReviewRequest) -> dict[str, Any]:
 
 
 @router.post("/render")
-def render(body: RenderRequest) -> Response:
+def render(
+    body: RenderRequest, user: dict[str, Any] = Depends(require_user)
+) -> Response:
     from copy import deepcopy
 
-    profile = get_profile_dict()
+    profile = _request_profile(user)
     plan = deepcopy(body.plan)
     try:
         rejected = revalidate_plan_rewrites(plan, profile)
@@ -210,6 +362,7 @@ def render(body: RenderRequest) -> Response:
         except (ValueError, RuntimeError) as error:
             raise HTTPException(status_code=400, detail=str(error))
         content = output.read_bytes()
+    _persist_artifact(user, "pdf", "resume.pdf", content)
     headers = {
         "X-Rejected-Edits": ",".join(rejected),
         "X-Trimmed": ",".join(pdf["trimmed_for_one_page"]),
@@ -224,14 +377,24 @@ def _db_session_factory():
 
 
 @router.get("/profiles")
-def profile_versions() -> dict[str, Any]:
-    from ..db import ensure_owner
+def profile_versions(
+    user: dict[str, Any] = Depends(require_user),
+) -> dict[str, Any]:
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from ..db import make_session_factory
     from ..profiles import get_active_profile, list_profiles
 
-    with _db_session_factory()() as session:
-        user = ensure_owner(session)
-        versions = list_profiles(session, user.id)
-        active = get_active_profile(session, user.id)
+    try:
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            versions = list_profiles(session, db_user.id)
+            active = get_active_profile(session, db_user.id)
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"App database unavailable (run 'resume-god db migrate'): {error}",
+        )
     return {
         "versions": versions,
         "has_active": active is not None,
@@ -240,8 +403,11 @@ def profile_versions() -> dict[str, Any]:
 
 
 @router.post("/profiles/import")
-def profile_import(body: ProfileImportRequest) -> dict[str, Any]:
-    from ..db import ensure_owner
+def profile_import(
+    body: ProfileImportRequest, user: dict[str, Any] = Depends(require_user)
+) -> dict[str, Any]:
+    from sqlalchemy.exc import SQLAlchemyError
+
     from ..profiles import import_profile
 
     try:
@@ -250,10 +416,16 @@ def profile_import(body: ProfileImportRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {error}")
     if not isinstance(profile, dict):
         raise HTTPException(status_code=400, detail="Profile YAML must be a mapping")
-    with _db_session_factory()() as session:
-        user = ensure_owner(session)
-        try:
-            row = import_profile(session, user.id, profile)
-        except ValueError as error:
-            raise HTTPException(status_code=400, detail=str(error))
+    try:
+        with _db_session_factory()() as session:
+            db_user = _db_user(session, user)
+            try:
+                row = import_profile(session, db_user.id, profile)
+            except ValueError as error:
+                raise HTTPException(status_code=400, detail=str(error))
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"App database unavailable (run 'resume-god db migrate'): {error}",
+        )
     return {"version": row.version, "status": row.status, "is_active": True}

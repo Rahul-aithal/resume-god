@@ -1,68 +1,77 @@
 import type {
-  JobSummary,
-  PdfResult,
-  PlanSummary,
-  ProvidersInfo,
-  RequirementCoverageRow,
-  ReviewResult,
-  ReviewSubmit,
-  RewriteRecord,
-  SkillDiff,
+  MeInfo,
+  PlanJson,
+  ProvidersStatus,
+  ReviewResponse,
+  TailorResponse,
 } from "@resume-god/api-client";
+import { API_PREFIX } from "@resume-god/api-client";
 
-const NOT_IMPLEMENTED = "M1 JSON API not implemented yet";
-
-export function listJobs(): Promise<JobSummary[]> {
-  throw new Error(NOT_IMPLEMENTED);
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_PREFIX}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+  if (!response.ok) {
+    const detail = await response
+      .json()
+      .then((body) => body.detail ?? response.statusText)
+      .catch(() => response.statusText);
+    throw new Error(`API ${response.status}: ${detail}`);
+  }
+  return response.json() as Promise<T>;
 }
 
-export function getPlan(_jobId: string): Promise<PlanSummary> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export interface TailorInput {
+  jd_text: string;
+  target_title?: string;
+  provider?: string;
+  max_achievements?: number;
+  summary?: string;
+  font?: string;
 }
 
-export function listRewrites(_jobId: string): Promise<RewriteRecord[]> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export function fetchProviders(): Promise<ProvidersStatus> {
+  return request<ProvidersStatus>("/providers");
 }
 
-export function getCoverage(_jobId: string): Promise<RequirementCoverageRow[]> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export function fetchMe(): Promise<MeInfo> {
+  return request<MeInfo>("/auth/me");
 }
 
-export function getSkillDiff(_jobId: string): Promise<SkillDiff[]> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export function postTailor(input: TailorInput): Promise<TailorResponse> {
+  return request<TailorResponse>("/tailor", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
-export function getProviders(_jobId: string): Promise<ProvidersInfo> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export function postReview(
+  plan: PlanJson,
+  rewrittenText: Record<string, string>,
+  summary?: string,
+): Promise<ReviewResponse> {
+  return request<ReviewResponse>("/review", {
+    method: "POST",
+    body: JSON.stringify({
+      plan,
+      edits: { rewritten_text: rewrittenText, summary: summary ?? null },
+    }),
+  });
 }
 
-export function getPdf(_jobId: string): Promise<PdfResult> {
-  void _jobId;
-  throw new Error(NOT_IMPLEMENTED);
+export async function postRender(plan: PlanJson): Promise<Blob> {
+  const response = await fetch(`${API_PREFIX}/render`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!response.ok) {
+    const detail = await response
+      .json()
+      .then((body) => body.detail ?? response.statusText)
+      .catch(() => response.statusText);
+    throw new Error(`API ${response.status}: ${detail}`);
+  }
+  return response.blob();
 }
-
-export function submitReview(
-  _jobId: string,
-  _payload: ReviewSubmit,
-): Promise<ReviewResult> {
-  void _jobId;
-  void _payload;
-  throw new Error(NOT_IMPLEMENTED);
-}
-
-export type {
-  JobSummary,
-  PdfResult,
-  PlanSummary,
-  ProvidersInfo,
-  RequirementCoverageRow,
-  ReviewResult,
-  ReviewSubmit,
-  RewriteRecord,
-  SkillDiff,
-};

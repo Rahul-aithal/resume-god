@@ -249,7 +249,10 @@ curl -s -X POST localhost:8000/api/tailor \
 `POST /api/review` takes a plan plus `rewritten_text` edits and returns the
 revalidated plan, rejected edits, and `resume-data`; `POST /api/render`
 returns the PDF bytes. Validation failures are `400` with reasons, never
-invented data.
+invented data. `/api/*` (except health/providers/auth) requires login
+(`GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/login/:provider`
+for Google/GitHub); tailor output is persisted per user and profiles resolve
+from each user's active DB version (file fallback).
 
 ## App database (B1: Postgres, SQLite fallback)
 

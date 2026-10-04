@@ -4,21 +4,24 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from resume_god.api.auth import require_user
 from resume_god.web import create_app
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = ROOT / "master_profile.yaml"
 
+FAKE_USER = {"id": 1, "email": "tester@example.com", "display_name": "Tester"}
+
 
 def make_client(directory: str) -> TestClient:
-    return TestClient(
-        create_app(
-            db_path=Path(directory) / "test.db",
-            profile_path=PROFILE_PATH,
-            outputs_dir=Path(directory) / "outputs",
-        )
+    app = create_app(
+        db_path=Path(directory) / "test.db",
+        profile_path=PROFILE_PATH,
+        outputs_dir=Path(directory) / "outputs",
     )
+    app.dependency_overrides[require_user] = lambda: dict(FAKE_USER)
+    return TestClient(app)
 
 
 class JsonApiTests(unittest.TestCase):
@@ -29,6 +32,17 @@ class JsonApiTests(unittest.TestCase):
             providers = client.get("/api/providers").json()
             self.assertIn("auto", providers["auto"])
             self.assertIn("gemini", providers["models"])
+
+    def test_tailor_requires_login(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = create_app(
+                db_path=Path(directory) / "test.db",
+                profile_path=PROFILE_PATH,
+                outputs_dir=Path(directory) / "outputs",
+            )
+            open_client = TestClient(app)
+            response = open_client.post("/api/tailor", json={"jd_text": "x"})
+            self.assertEqual(response.status_code, 401)
 
     def test_tailor_review_render_roundtrip(self):
         with tempfile.TemporaryDirectory() as directory:
