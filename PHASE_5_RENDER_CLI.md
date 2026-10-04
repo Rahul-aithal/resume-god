@@ -58,6 +58,47 @@ uv run python -m resume_god.cli tailor fixtures/jds/jd-1.txt \
 
 If `--target-title` is omitted, the Phase 2 parser derives it from the JD. Use `--parser-provider glm` or `--parser-provider gemini` for remote structured parsing.
 
+## Font
+
+Resumes render in Calibri by default (override with `--font`, e.g.
+`--font "Times New Roman"`). The requested font is emitted with a fallback
+chain (`Carlito`, `Liberation Sans`, `DejaVu Sans`) so machines without the
+proprietary font still compile; the report records the requested font under
+`## PDF output`.
+
+## Review gate: AI JSON in, Typst PDF out
+
+`tailor` runs the full pipeline — JD → graph retrieval → LLM selection
+(`--select-provider`) → constrained rewriting → resume-data JSON (schema v1)
+— and writes the AI-generated intermediate `resume-plan.json`. Review it
+(edit `rewrites.<id>.rewritten_text`, drop/reorder bullets, or pass a new
+`--summary`), then render the final PDF from the reviewed file:
+
+```bash
+resume-god render-pdf --plan outputs/resume-plan.json --out outputs/resume-reviewed.pdf --data-output outputs/resume-data.json
+```
+
+`render-pdf` re-validates every reviewed edit against the reviewed profile
+(`rewrite.revalidate_plan_rewrites` + `resume_data.validate_resume_data`):
+unknown achievement ids are dropped, edits that introduce new skills,
+technologies, or numbers fall back to the reviewed original (listed on
+stderr), and edits to `source_text` itself are refused.
+
+## Typst file import (no string interpolation)
+
+The static template `resume_god/template/resume.typ` reads its data with
+`#let plan = json("resume-data.json")` — Python never interpolates text into
+Typst source. Python only validates the JSON, stages both files, and
+compiles. Any reviewed `resume-data.json` recompiles standalone:
+
+```bash
+typst compile resume.typ resume.pdf
+```
+
+producing the byte-equivalent-content PDF (verified: identical extracted
+text). The font rides in the JSON (`"font"` field); the template appends the
+fallback chain.
+
 ## One-page enforcement
 
 The renderer compiles the full assembled resume and checks the actual PDF page

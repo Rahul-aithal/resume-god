@@ -8,9 +8,52 @@ Resume God turns a reviewed master profile and a job description into:
 - a machine-readable tailoring plan;
 - a readable match report with scores, evidence, rewrite decisions, and gaps.
 
+Pipeline: JD → graph retrieval (exact + 2-hop expansion + semantic) →
+LLM selects and writes **resume-data JSON** (schema v1) → grounding
+validation → `resume-data.json` → static Typst template (file import, no
+string interpolation) → one-page PDF. Bare `typst compile` on a reviewed
+pair reproduces the identical PDF.
+
 The core safety rule is unchanged: the system may select and lightly reword
 only facts present in `master_profile.yaml`. It must never invent skills,
 technologies, numbers, employers, or dates.
+
+## Monorepo layout (Bun + Turborepo + Docker)
+
+```
+apps/api/          Python pipeline: resume_god/, tests/, profile, fixtures
+apps/web/          React + Vite + Tailwind SPA (served by the stack)
+packages/api-client/  Shared typed API shapes for the future JSON API
+docker/            Dockerfiles + nginx config
+compose.yaml       Prod-like stack: web + api + postgres (+ opt-in neo4j)
+compose.dev.yaml   Local overrides: live reload, host ports
+```
+
+JS tooling is Bun-only (no npm). Turbo orchestrates everything:
+
+```bash
+bun install                  # root, once
+bun run dev                  # api + web with live reload (via turbo)
+bun run build                # all packages
+bun run test                 # vitest suites + 75-test Python suite
+bun run lint                 # prettier + python compile check
+bun run typecheck            # tsc + python import smoke
+```
+
+Python commands below run with `apps/api` as the working directory
+(e.g. `cd apps/api && uv run ...`). The installed `resume-god` global
+command works from anywhere.
+
+Run the full stack (web UI at http://localhost:8080):
+
+```bash
+docker compose up --build          # prod-like: nginx SPA + api + postgres
+docker compose -f compose.yaml -f compose.dev.yaml up --build   # local dev
+```
+
+App env lives in `apps/api/.env` (gitignored; see `.env.example`).
+`PHASE_*.md` docs predate the monorepo move — run their commands from
+`apps/api/`.
 
 ## Original phase status
 
@@ -36,7 +79,7 @@ Install the global CLI command once:
 ```bash
 git clone https://github.com/Rahul-aithal/resume-god.git
 cd resume-god
-./scripts/install-cli.sh
+./apps/api/scripts/install-cli.sh
 ```
 
 The installer uses `uv tool`, installs the `resume-god` command on PATH, and adds
@@ -67,7 +110,35 @@ outputs/software-developer/resume-report.md
 outputs/software-developer/resume-plan.json
 ```
 
-The equivalent module invocation is:
+Resumes render in Calibri (with automatic fallback when it is not
+installed). Override per run with `--font "Times New Roman"`.
+
+## Review gate: AI generates JSON, you review, JSON goes to Typst
+
+`tailor` writes `resume-plan.json` (graph evidence + LLM selection +
+rewrites). Review it — edit any `rewrites.<id>.rewritten_text`, drop or
+reorder bullets — then render from the reviewed file. Every edit is
+re-validated (unknown ids dropped, unsafe texts fall back to the reviewed
+original) before Typst compiles:
+
+```bash
+resume-god tailor path/to/job.txt \
+  --target-title "Software Developer" \
+  --out outputs/software-developer/resume.pdf
+# ... review outputs/software-developer/resume-plan.json ...
+resume-god render-pdf \
+  --plan outputs/software-developer/resume-plan.json \
+  --out outputs/software-developer/resume-reviewed.pdf \
+  --data-output outputs/software-developer/resume-data.json
+```
+
+`--select-provider auto|glm|gemini|deterministic` controls who picks the
+bullets from graph-ranked evidence (default: LLM when a key exists, else
+deterministic ranking). `--data-output` keeps the validated
+`resume-data.json` that the static template (`resume_god/template/resume.typ`)
+imports — recompile it any time with plain `typst compile`.
+
+The equivalent module invocation (from `apps/api/`):
 
 ```bash
 uv run python -m resume_god.cli tailor path/to/job.txt \
@@ -85,7 +156,8 @@ offline deterministic path runs — never a crash.
 
 Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and/or `GLM_API_KEY` (or
 `ZAI_API_KEY`), optionally in a `.env` file. `RESUME_GOD_LLM_ORDER`
-(default `gemini,glm`) controls auto preference. Every report records what
+(default `gemini,glm`) controls auto preference, and `GEMINI_MODEL`
+(default `gemini-3-flash-preview`) selects the Gemini model. Every report records what
 was requested vs actually used under `## Providers`, including fallback
 reasons.
 
@@ -147,7 +219,10 @@ Every `tailor` report now ends with a skill-diff section:
 
 so you can see “they expect all these, I have exposure in only these”.
 
-## Web UI (FastAPI, no npm)
+## Web UI
+
+Local FastAPI UI (legacy server-rendered pages until the M1 JSON API lands;
+the React SPA in `apps/web/` is scaffolded and served by the docker stack):
 
 ```bash
 resume-god web --port 8000
@@ -162,10 +237,10 @@ records the role, and `/files/...` links to each generated PDF/`.typ` source.
 Start the configured local database:
 
 ```bash
-docker compose up -d neo4j
+docker compose --profile graph up -d neo4j
 ```
 
-Load the reviewed profile:
+Load the reviewed profile (from `apps/api/`):
 
 ```bash
 resume-god graph load \
@@ -188,7 +263,8 @@ resume-god graph query \
 ## Tests
 
 ```bash
-uv run python -m unittest discover -s tests -v
+bun run test                              # everything (turbo)
+(cd apps/api && uv run python -m unittest discover -s tests -v)
 ```
 
 The Neo4j load test is optional and runs when `RESUME_GOD_NEO4J_URI` and
@@ -202,13 +278,13 @@ Update after pulling changes:
 ```bash
 cd /path/to/resume-god
 git pull
-./scripts/install-cli.sh
+./apps/api/scripts/install-cli.sh
 ```
 
 Remove the global command:
 
 ```bash
-/path/to/resume-god/scripts/uninstall-cli.sh
+/path/to/resume-god/apps/api/scripts/uninstall-cli.sh
 ```
 
 Environment overrides:
