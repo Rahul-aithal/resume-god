@@ -42,12 +42,46 @@ class AuthTests(unittest.TestCase):
     def test_unconfigured_provider_login_is_503(self):
         with tempfile.TemporaryDirectory() as directory:
             client = make_client(directory)
-            for provider in ("google", "github"):
-                response = client.get(f"/api/auth/login/{provider}")
-                self.assertEqual(response.status_code, 503)
-                self.assertIn("not configured", response.json()["detail"])
+            response = client.get("/api/auth/login/google")
+            self.assertEqual(response.status_code, 503)
+            self.assertIn("not configured", response.json()["detail"])
+
+    def test_removed_provider_is_404(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = make_client(directory)
+            missing = client.get("/api/auth/login/github")
+            self.assertEqual(missing.status_code, 404)
             missing = client.get("/api/auth/login/bitbucket")
             self.assertEqual(missing.status_code, 404)
+
+    def test_login_redirect_uses_public_origin(self):
+        import os
+
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_CLIENT_ID": "test-cid",
+                    "GOOGLE_CLIENT_SECRET": "test-csec",
+                },
+            ):
+                app = create_app(
+                    db_path=Path(directory) / "test.db",
+                    profile_path=PROFILE_PATH,
+                    outputs_dir=Path(directory) / "outputs",
+                )
+                client = TestClient(app, base_url="https://app.example.com")
+                response = client.get(
+                    "/api/auth/login/google", follow_redirects=False
+                )
+            self.assertIn(response.status_code, (302, 307))
+            location = response.headers["location"]
+            self.assertIn("accounts.google.com", location)
+            self.assertIn(
+                "redirect_uri=https%3A%2F%2Fapp.example.com"
+                "%2Fapi%2Fauth%2Fcallback%2Fgoogle",
+                location,
+            )
 
     def test_callback_creates_user_and_session(self):
         import os

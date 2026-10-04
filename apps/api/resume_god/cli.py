@@ -674,6 +674,18 @@ def _web_main(argv: list[str]) -> int:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--outputs", type=Path, default=Path("outputs/web"))
+    parser.add_argument(
+        "--proxy-headers",
+        action="store_true",
+        help="Trust X-Forwarded-* from a reverse proxy (required behind nginx "
+        "so OAuth redirect URIs use the public origin)",
+    )
+    parser.add_argument(
+        "--forwarded-allow-ips",
+        default="127.0.0.1",
+        help="Proxy IPs trusted for forwarded headers (use '*' only when "
+        "nginx is the sole ingress, e.g. in the container)",
+    )
     args = parser.parse_args(argv)
     try:
         import uvicorn
@@ -693,7 +705,13 @@ def _web_main(argv: list[str]) -> int:
         profile_path=args.profile or default_profile_path(),
         outputs_dir=args.outputs,
     )
-    uvicorn.run(app, host=args.host, port=args.port)
+    uvicorn.run(
+        app,
+        host=args.host,
+        port=args.port,
+        proxy_headers=args.proxy_headers,
+        forwarded_allow_ips=args.forwarded_allow_ips,
+    )
     return 0
 
 

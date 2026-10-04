@@ -1,10 +1,9 @@
-"""OAuth login (B3): Google + GitHub via Authlib, cookie sessions.
+"""OAuth login (B3): Google via Authlib, cookie sessions.
 
 Unconfigured providers return 503 with setup instructions instead of
 crashing. Sessions are signed cookies (SESSION_SECRET); without one, an
 ephemeral per-boot secret is used and a warning is logged — safe, but
-logins don't survive restarts. Existing endpoints stay open (single-user
-back-compat); Phase B4 scopes them to request.user.
+logins don't survive restarts.
 """
 
 from __future__ import annotations
@@ -23,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth")
 
-PROVIDERS = ("google", "github")
+PROVIDERS = ("google",)
+# NOTE: GitHub support was removed for now. Restore from git history
+# (feat commit 47dcd19) to re-add: PROVIDERS entry, oauth.register block
+# below, and the fetch_userinfo branch.
 
 
 def session_secret() -> str:
@@ -44,18 +46,15 @@ def build_oauth() -> OAuth:
             name="google",
             client_id=os.environ["GOOGLE_CLIENT_ID"],
             client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
-            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            # Explicit endpoints (no OIDC discovery fetch at redirect time).
+            authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+            access_token_url="https://oauth2.googleapis.com/token",
+            jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
             client_kwargs={"scope": "openid email profile"},
         )
-    if os.environ.get("GITHUB_CLIENT_ID") and os.environ.get("GITHUB_CLIENT_SECRET"):
-        oauth.register(
-            name="github",
-            client_id=os.environ["GITHUB_CLIENT_ID"],
-            client_secret=os.environ["GITHUB_CLIENT_SECRET"],
-            access_token_url="https://github.com/login/oauth/access_token",
-            authorize_url="https://github.com/login/oauth/authorize",
-            api_base_url="https://api.github.com/",
-            client_kwargs={"scope": "read:user user:email"},
+    if os.environ.get("GITHUB_CLIENT_ID") or os.environ.get("GITHUB_CLIENT_SECRET"):
+        logger.warning(
+            "GitHub OAuth was removed; ignoring GITHUB_CLIENT_ID/SECRET."
         )
     return oauth
 
@@ -83,36 +82,18 @@ def _client(request: Request, provider: str):
 
 async def fetch_userinfo(provider: str, client, token: dict[str, Any]) -> dict[str, Any]:
     """Normalize provider userinfo to {subject, email, name}."""
-    if provider == "google":
-        resp = await client.get(
-            "https://openidconnect.googleapis.com/v1/userinfo", token=token
-        )
-        data = resp.json()
-        if not data.get("sub") or not data.get("email"):
-            raise HTTPException(status_code=502, detail="Google userinfo incomplete")
-        return {
-            "subject": f"google:{data['sub']}",
-            "email": str(data["email"]),
-            "name": str(data.get("name") or data["email"]),
-        }
-    resp = await client.get("user", token=token)
+    if provider != "google":
+        raise HTTPException(status_code=404, detail=f"Unknown provider: {provider}")
+    resp = await client.get(
+        "https://openidconnect.googleapis.com/v1/userinfo", token=token
+    )
     data = resp.json()
-    if not data.get("id"):
-        raise HTTPException(status_code=502, detail="GitHub user incomplete")
-    email = data.get("email") or ""
-    if not email:
-        emails = await client.get("user/emails", token=token)
-        primary = next(
-            (row for row in emails.json() if row.get("primary") and row.get("verified")),
-            None,
-        )
-        email = (primary or {}).get("email") or ""
-    if not email:
-        raise HTTPException(status_code=502, detail="GitHub email unavailable")
+    if not data.get("sub") or not data.get("email"):
+        raise HTTPException(status_code=502, detail="Google userinfo incomplete")
     return {
-        "subject": f"github:{data['id']}",
-        "email": str(email),
-        "name": str(data.get("name") or data.get("login") or email),
+        "subject": f"google:{data['sub']}",
+        "email": str(data["email"]),
+        "name": str(data.get("name") or data["email"]),
     }
 
 

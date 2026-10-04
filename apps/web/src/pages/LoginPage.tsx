@@ -6,11 +6,8 @@ export default function LoginPage() {
         <a href="/api/auth/login/google">Continue with Google</a>
       </p>
       <p>
-        <a href="/api/auth/login/github">Continue with GitHub</a>
-      </p>
-      <p>
-        Providers appear here only after OAuth client IDs are configured on the
-        server; otherwise the links explain the setup.
+        The link works once the server has GOOGLE_CLIENT_ID and
+        GOOGLE_CLIENT_SECRET configured; otherwise it explains the setup.
       </p>
     </div>
   );
