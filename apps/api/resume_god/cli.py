@@ -493,6 +493,68 @@ def _render_pdf_main(argv: list[str]) -> int:
     return 0 if pdf["audit_passed"] else 1
 
 
+def _db_migrate_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="resume-god db")
+    sub = parser.add_subparsers(dest="action", required=True)
+    migrate = sub.add_parser("migrate", help="Upgrade the app database to head")
+    migrate.add_argument(
+        "--url", default=None, help="Defaults to DATABASE_URL or local SQLite"
+    )
+    args = parser.parse_args(argv)
+    import os as _os
+
+    from alembic import command as _alembic_command
+    from alembic.config import Config as _AlembicConfig
+
+    from .paths import PROJECT_ROOT
+
+    if args.url:
+        _os.environ["DATABASE_URL"] = args.url
+    cfg = _AlembicConfig(str(PROJECT_ROOT / "alembic.ini"))
+    _alembic_command.upgrade(cfg, "head")
+    from .db import database_url
+
+    print(f"Migrated: {database_url()}")
+    return 0
+
+
+def _profile_main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="resume-god profile")
+    sub = parser.add_subparsers(dest="action", required=True)
+    imp = sub.add_parser("import", help="Import a YAML profile as a new version")
+    imp.add_argument("profile_file", type=Path)
+    imp.add_argument("--email", default="owner@local")
+    imp.add_argument("--db-url", default=None)
+    lst = sub.add_parser("list", help="List profile versions")
+    lst.add_argument("--email", default="owner@local")
+    lst.add_argument("--db-url", default=None)
+    args = parser.parse_args(argv)
+    import yaml as _yaml
+
+    from .db import ensure_owner, make_session_factory
+    from .profiles import (
+        get_active_profile,
+        import_profile,
+        list_profiles,
+    )
+
+    session_factory = make_session_factory(args.db_url)
+    with session_factory() as session:
+        user = ensure_owner(session, email=args.email)
+        if args.action == "import":
+            profile = _yaml.safe_load(
+                args.profile_file.read_text(encoding="utf-8")
+            )
+            row = import_profile(session, user.id, profile)
+            print(f"Imported version {row.version} (status={row.status})")
+        else:
+            for row in list_profiles(session, user.id):
+                print(json.dumps(row))
+            active = get_active_profile(session, user.id)
+            print(f"Active: {'yes' if active else 'none'}")
+    return 0
+
+
 def _company_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="resume-god company")
     sub = parser.add_subparsers(dest="action", required=True)
@@ -612,6 +674,10 @@ def main(argv: list[str] | None = None) -> int:
         return _tailor_main(arguments[1:])
     if arguments and arguments[0] == "render-pdf":
         return _render_pdf_main(arguments[1:])
+    if arguments and arguments[0] == "db":
+        return _db_migrate_main(arguments[1:])
+    if arguments and arguments[0] == "profile":
+        return _profile_main(arguments[1:])
     if arguments and arguments[0] == "doctor":
         return _doctor_main()
     if arguments and arguments[0] == "company":

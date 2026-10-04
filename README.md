@@ -222,7 +222,7 @@ so you can see “they expect all these, I have exposure in only these”.
 
 ## Web UI
 
-Local FastAPI UI (legacy server-rendered pages until the M1 JSON API lands;
+Local FastAPI UI (server-rendered tracker pages plus the `/api` JSON backend;
 the React SPA in `apps/web/` is scaffolded and served by the docker stack):
 
 ```bash
@@ -232,6 +232,38 @@ resume-god web --port 8000
 Open `http://127.0.0.1:8000`: dashboard with company/role counts, per-company
 pages, `/new` paste-a-JD form that generates the Typst PDF + skill diff and
 records the role, and `/files/...` links to each generated PDF/`.typ` source.
+
+## JSON API (M1)
+
+The same UI also serves a JSON API the React SPA drives —
+`tailor → review → render` with plans passed by value:
+
+```bash
+curl -s localhost:8000/api/health
+curl -s localhost:8000/api/providers
+curl -s -X POST localhost:8000/api/tailor \
+  -H 'Content-Type: application/json' \
+  -d '{"jd_text": "…", "target_title": "Software Engineer", "provider": "auto"}'
+```
+
+`POST /api/review` takes a plan plus `rewritten_text` edits and returns the
+revalidated plan, rejected edits, and `resume-data`; `POST /api/render`
+returns the PDF bytes. Validation failures are `400` with reasons, never
+invented data.
+
+## App database (B1: Postgres, SQLite fallback)
+
+Beyond the legacy tracker DB, the app database holds users, versioned
+profiles, companies/roles/applications, artifacts, and settings:
+
+```bash
+(cd apps/api && uv run python -m resume_god.cli db migrate)   # DATABASE_URL or local SQLite
+resume-god profile import master_profile.yaml                  # new immutable version, becomes active
+resume-god profile list
+```
+
+Every import is a new version; the pipeline can pin any version, and only
+`user_reviewed` profiles render. Migrations live in `apps/api/alembic/`.
 
 ## Local Neo4j graph
 

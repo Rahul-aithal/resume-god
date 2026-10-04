@@ -19,8 +19,8 @@ outputs/
 output/
 *.pdf
 *.egg-info/
-data/*.db
-data/*.db-journal
+*.db
+*.db-journal
 
 # Scratch job descriptions used for local testing.
 job.txt

@@ -74,6 +74,11 @@ def create_app(
     outputs_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/files", StaticFiles(directory=str(outputs_dir)), name="files")
 
+    from .api import jobs as api_jobs
+
+    api_jobs.PROFILE_PATH = Path(profile_path)
+    app.include_router(api_jobs.router)
+
     @contextmanager
     def db_session() -> Iterator[Any]:
         conn = connect(db_path)
