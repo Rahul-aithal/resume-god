@@ -8,6 +8,16 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = ROOT / "master_profile.yaml"
+# Phase review docs live at the monorepo root; profile source paths are
+# resolved against the profile directory first, then the repo root.
+REPO_ROOT = ROOT.parents[1]
+
+
+def source_path(relative: str) -> Path:
+    candidate = ROOT / relative
+    if candidate.is_file():
+        return candidate
+    return REPO_ROOT / relative
 
 
 def load_profile():
@@ -45,8 +55,9 @@ class MasterProfileTests(unittest.TestCase):
             if source.get("format") == "pdf"
         }
         cls.source_text = {
-            source_id: extract_pdf_text(ROOT / source["path"])
+            source_id: extract_pdf_text(source_path(source["path"]))
             for source_id, source in pdf_sources.items()
+            if source.get("format") == "pdf"
         }
 
     def test_user_review_status_and_conflicts_are_resolved(self):
@@ -60,7 +71,7 @@ class MasterProfileTests(unittest.TestCase):
         for source in self.profile["sources"]:
             self.assertIn("id", source)
             self.assertIn("resume_version", source)
-            self.assertTrue((ROOT / source["path"]).is_file())
+            self.assertTrue(source_path(source["path"]).is_file())
 
     def test_contact_information_and_hyperlinks_are_preserved(self):
         contact = self.profile["contact"]
@@ -238,7 +249,7 @@ class MasterProfileTests(unittest.TestCase):
                     self.assertIn(source_id, self.sources)
 
     def test_conflict_report_lists_every_resolved_conflict(self):
-        report = (ROOT / "PHASE_0_REVIEW.md").read_text(encoding="utf-8")
+        report = source_path("PHASE_0_REVIEW.md").read_text(encoding="utf-8")
         for conflict_id in self.profile["resolved_conflicts"]:
             with self.subTest(conflict=conflict_id):
                 self.assertIn(f"### {conflict_id}", report)

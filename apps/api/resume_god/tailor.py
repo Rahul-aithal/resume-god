@@ -301,6 +301,58 @@ def _coverage_rows(
     return rows
 
 
+def refresh_coverage(plan: dict[str, Any], profile: dict[str, Any]) -> None:
+    """Recompute coverage + gaps from the current selected achievements.
+
+    Shared by the initial plan build and the Typst one-page trim loop so the
+    two can never drift apart. Mutates the plan in place.
+    """
+    from .graph import ProfileGraph
+
+    graph = ProfileGraph(profile)
+    inferred_selected: set[str] = set()
+    for achievement in plan["selected_achievements"]:
+        inferred_selected.update(
+            graph.inferred_evidence_for(set(achievement["skills"]))
+        )
+    inferred_available: set[str] = set()
+    for achievement in profile["achievements"]:
+        inferred_available.update(
+            graph.inferred_evidence_for(set(achievement["skills"]))
+        )
+    requirement_coverage = _coverage_rows(
+        plan.get("requirement_coverage", []),
+        profile,
+        plan["selected_achievements"],
+        inferred_available=inferred_available,
+        inferred_selected=inferred_selected,
+    )
+    plan["requirement_coverage"] = requirement_coverage
+    matched_but_unevidenced = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "priority": row["priority"],
+            "status": row["status"],
+        }
+        for row in requirement_coverage
+        if row["kind"] == "profile_skill"
+        and row["status"] not in ("covered", "inferred_covered")
+    ]
+    plan["gap_report"]["matched_but_unevidenced_skills"] = matched_but_unevidenced
+    plan["gap_report"]["inferred_covered_skills"] = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "priority": row["priority"],
+            "status": row["status"],
+        }
+        for row in requirement_coverage
+        if row["status"] == "inferred_covered"
+    ]
+    plan["gap_report"]["all_known_requirements_covered"] = not matched_but_unevidenced
+
+
 def build_tailoring_plan(
     profile: dict[str, Any],
     job_description: str,

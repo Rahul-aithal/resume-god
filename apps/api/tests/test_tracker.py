@@ -7,12 +7,14 @@ from resume_god.store import (
     add_role,
     company_detail,
     connect,
+    list_applications,
     list_companies,
+    list_roles,
     set_role_status,
     upsert_company,
 )
 from resume_god.tailor import build_tailoring_plan, load_profile
-from resume_god.typst import BASIC_RESUME_VERSION, render_resume_typst
+from resume_god.typst import BASIC_RESUME_VERSION, TEMPLATE_PATH
 from resume_god.rewrite import rewrite_plan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +46,29 @@ class TrackerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 set_role_status(conn, role["id"], "hired")
 
+    def test_reapply_keeps_history_and_paginates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            conn = connect(Path(directory) / "c.db")
+            first = add_role(conn, "Acme", "Engineer", status="applied")
+            second = add_role(conn, "Acme", "Engineer", status="interview")
+            self.assertEqual(first["id"], second["id"])
+            self.assertEqual(second["status"], "interview")
+            history = list_applications(conn, first["id"])
+            self.assertEqual(len(history), 2)
+            self.assertEqual(
+                [row["status"] for row in history], ["applied", "interview"]
+            )
+            set_role_status(conn, first["id"], "offer")
+            history = list_applications(conn, first["id"])
+            self.assertEqual(
+                [row["status"] for row in history],
+                ["applied", "interview", "offer"],
+            )
+            add_role(conn, "Acme", "Designer")
+            page = list_roles(conn, limit=1, offset=0)
+            self.assertEqual(len(page), 1)
+            self.assertEqual(len(list_roles(conn)), 2)
+
     def test_skill_diff_splits_have_vs_missing(self):
         profile = load_profile(ROOT / "master_profile.yaml")
         jd = (ROOT / "job.txt").read_text(encoding="utf-8")
@@ -61,17 +86,22 @@ class TrackerTests(unittest.TestCase):
     def test_typst_uses_basic_resume_template(self):
         profile = load_profile(ROOT / "master_profile.yaml")
         jd = (ROOT / "job.txt").read_text(encoding="utf-8")
+        from resume_god.resume_data import build_resume_data
+
         plan = rewrite_plan(
             build_tailoring_plan(profile, jd, target_title="Software Engineer"),
             profile,
         )
-        source = render_resume_typst(plan, profile)
+        data = build_resume_data(plan, profile, font=None, summary=None)
+        self.assertTrue(data["sections"])
+        source = TEMPLATE_PATH.read_text(encoding="utf-8")
         self.assertIn(f"@preview/basic-resume:{BASIC_RESUME_VERSION}", source)
         self.assertIn("#show: resume.with(", source)
+        self.assertIn('json("resume-data.json")', source)
         self.assertIn("#work(", source)
         self.assertIn("#project(", source)
         self.assertIn("#edu(", source)
-        # No hand-rolled layout helpers anymore.
+        # No hand-rolled layout helpers, no Python interpolation anymore.
         self.assertNotIn("#let section(title)", source)
         # No stray bracket-wrapped summary or quoted H1 title.
         self.assertNotIn('= "Software Engineer"', source)

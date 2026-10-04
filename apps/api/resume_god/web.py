@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import re
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -24,7 +26,7 @@ from .store import (
     list_roles,
     upsert_company,
 )
-from .typst import write_resume_pdf
+from .typst import write_resume_data_pdf
 
 CSS = """
 body{font-family:system-ui,Arial,sans-serif;max-width:1000px;margin:0 auto;padding:24px;color:#111}
@@ -72,25 +74,30 @@ def create_app(
     outputs_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/files", StaticFiles(directory=str(outputs_dir)), name="files")
 
-    def _db():
-        return connect(db_path)
+    @contextmanager
+    def db_session() -> Iterator[Any]:
+        conn = connect(db_path)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard() -> str:
-        conn = _db()
-        companies = list_companies(conn)
-        roles = list_roles(conn)
-        rows = "".join(
-            f"<tr><td><a href='/companies/{_esc(c['name'])}'>{_esc(c['name'])}</a></td>"
-            f"<td>{c['role_count']}</td></tr>"
-            for c in companies
-        ) or "<tr><td colspan=2>No companies yet — add one below.</td></tr>"
-        role_rows = "".join(
-            f"<tr><td>{_esc(r['company_name'])}</td><td>{_esc(r['target_title'])}</td>"
-            f"<td><span class=badge>{_esc(r['status'])}</span></td></tr>"
-            for r in roles[:20]
-        )
-        return _layout("Dashboard", f"""
+        with db_session() as conn:
+            companies = list_companies(conn)
+            roles = list_roles(conn)
+            rows = "".join(
+                f"<tr><td><a href='/companies/{_esc(c['name'])}'>{_esc(c['name'])}</a></td>"
+                f"<td>{c['role_count']}</td></tr>"
+                for c in companies
+            ) or "<tr><td colspan=2>No companies yet — add one below.</td></tr>"
+            role_rows = "".join(
+                f"<tr><td>{_esc(r['company_name'])}</td><td>{_esc(r['target_title'])}</td>"
+                f"<td><span class=badge>{_esc(r['status'])}</span></td></tr>"
+                for r in roles[:20]
+            )
+            return _layout("Dashboard", f"""
 <div class=card><h3>Companies ({len(companies)}) — roles applied: {len(roles)}</h3>
 <table><tr><th>Company</th><th>Roles applied</th></tr>{rows}</table></div>
 <div class=card><h3>Recent roles</h3>
@@ -105,31 +112,33 @@ def create_app(
 
     @app.get("/companies", response_class=HTMLResponse)
     def companies_page() -> str:
-        conn = _db()
-        companies = list_companies(conn)
-        cards = "".join(
-            f"<div class=card><a href='/companies/{_esc(c['name'])}'><b>{_esc(c['name'])}</b></a>"
-            f" — {c['role_count']} role(s)</div>"
-            for c in companies
-        ) or "<p>No companies yet.</p>"
-        return _layout("Companies", cards)
+        with db_session() as conn:
+            companies = list_companies(conn)
+            cards = "".join(
+                f"<div class=card><a href='/companies/{_esc(c['name'])}'><b>{_esc(c['name'])}</b></a>"
+                f" — {c['role_count']} role(s)</div>"
+                for c in companies
+            ) or "<p>No companies yet.</p>"
+            return _layout("Companies", cards)
 
     @app.post("/companies/add")
     async def company_add(request: Request):
         form = await request.form()
-        conn = _db()
-        upsert_company(
-            conn, str(form.get("name", "")),
-            website=str(form.get("website", "")),
-            location=str(form.get("location", "")),
-            about=str(form.get("about", "")),
-        )
+        with db_session() as conn:
+            upsert_company(
+                conn, str(form.get("name", "")),
+                website=str(form.get("website", "")),
+                location=str(form.get("location", "")),
+                about=str(form.get("about", "")),
+            )
         return RedirectResponse("/", status_code=303)
 
     @app.get("/companies/{name}", response_class=HTMLResponse)
     def company_page(name: str) -> str:
-        conn = _db()
-        detail = company_detail(conn, name)
+        with db_session() as conn:
+            detail = company_detail(conn, name)
+        if not detail:
+            return _layout("Not found", f"<p>Unknown company {_esc(name)}</p>")
         if not detail:
             return _layout("Not found", f"<p>Unknown company {_esc(name)}</p>")
         role_rows = "".join(
@@ -150,14 +159,14 @@ def create_app(
 
     @app.get("/roles", response_class=HTMLResponse)
     def roles_page() -> str:
-        conn = _db()
-        roles = list_roles(conn)
-        rows = "".join(
-            f"<tr><td>{_esc(r['company_name'])}</td><td>{_esc(r['target_title'])}</td>"
-            f"<td>{_esc(r['status'])}</td></tr>"
-            for r in roles
-        ) or "<tr><td colspan=3>None</td></tr>"
-        return _layout("Roles", f"<table><tr><th>Company</th><th>Role</th><th>Status</th></tr>{rows}</table>")
+        with db_session() as conn:
+            roles = list_roles(conn)
+            rows = "".join(
+                f"<tr><td>{_esc(r['company_name'])}</td><td>{_esc(r['target_title'])}</td>"
+                f"<td>{_esc(r['status'])}</td></tr>"
+                for r in roles
+            ) or "<tr><td colspan=3>None</td></tr>"
+            return _layout("Roles", f"<table><tr><th>Company</th><th>Role</th><th>Status</th></tr>{rows}</table>")
 
     @app.get("/new", response_class=HTMLResponse)
     def new_page(company: str = "") -> str:
@@ -173,6 +182,9 @@ def create_app(
 <option value="deterministic">Offline only</option>
 </select></label>
 <textarea name=jd_text placeholder="Paste the full job description here…" required></textarea>
+<input name=max_achievements placeholder="Max bullets (default 10)">
+<input name=summary placeholder="Reviewed summary override (optional)">
+<input name=font placeholder="Font (default Calibri)">
 <button>Generate tailored resume + skill diff</button></form></div>""")
 
     @app.post("/tailor")
@@ -184,28 +196,73 @@ def create_app(
         job_url = str(form.get("job_url", ""))
         if not company or not target_title or not jd_text.strip():
             return HTMLResponse(_layout("Error", "<p>Company, title and JD are required.</p>"), status_code=400)
+        try:
+            max_achievements = int(str(form.get("max_achievements", "") or 10))
+        except ValueError:
+            return HTMLResponse(_layout("Error", "<p>Max bullets must be a number.</p>"), status_code=400)
+        summary = str(form.get("summary", "") or "").strip() or None
+        font = str(form.get("font", "") or "").strip() or None
         from .jd_parser import parse_job_description
         from .llm import resolve_or_none
 
-        provider_choice = str(form.get("provider", "auto") or "auto")
-        provider, _, _ = resolve_or_none(provider_choice)
-        profile = load_profile(profile_path)
-        parsed = parse_job_description(
-            profile, jd_text, provider=provider, target_title=target_title
-        )
-        plan = build_tailoring_plan(
-            profile, jd_text, target_title=target_title,
-            parsed_job_description=parsed,
-        )
-        rewrite_provider, _, _ = resolve_or_none(provider_choice)
-        plan = rewrite_plan(plan, profile, provider=rewrite_provider)
+        try:
+            provider_choice = str(form.get("provider", "auto") or "auto")
+            provider, _, _ = resolve_or_none(provider_choice)
+            profile = load_profile(profile_path)
+            parsed = parse_job_description(
+                profile, jd_text, provider=provider, target_title=target_title
+            )
+            plan = build_tailoring_plan(
+                profile, jd_text, target_title=target_title,
+                max_achievements=max_achievements,
+                parsed_job_description=parsed,
+            )
+            from .resume_data import (
+                build_resume_data,
+                narrow_plan_ranking,
+                select_resume_bullets,
+                validate_resume_data,
+            )
+
+            select_provider, _, _ = resolve_or_none(provider_choice)
+            selection = select_resume_bullets(
+                plan, profile, provider=select_provider,
+                max_select=max_achievements,
+            )
+            plan = narrow_plan_ranking(plan, selection["selected_ids"])
+            rewrite_provider, _, _ = resolve_or_none(provider_choice)
+            plan = rewrite_plan(
+                plan, profile, provider=rewrite_provider, summary=summary
+            )
+            resume_data = build_resume_data(
+                plan, profile, font=font, summary=summary
+            )
+            resume_data = validate_resume_data(resume_data, profile)["data"]
+        except ValueError as error:
+            return HTMLResponse(
+                _layout("Error", f"<p>Cannot tailor this application: {_esc(error)}</p>"),
+                status_code=400,
+            )
         diff = build_skill_diff(plan, profile)
-        slug = f"{_slug(company)}-{_slug(target_title)}"
+        content_hash = hashlib.sha256(
+            f"{company}\0{target_title}\0{jd_text}".encode("utf-8")
+        ).hexdigest()[:8]
+        slug = f"{_slug(company)}-{_slug(target_title)}-{content_hash}"
         out_dir = outputs_dir / slug
         out_dir.mkdir(parents=True, exist_ok=True)
         pdf_path = out_dir / "resume.pdf"
         typ_path = out_dir / "resume.typ"
-        adjusted, pdf = write_resume_pdf(plan, profile, pdf_path, keep_source_path=typ_path)
+        try:
+            adjusted, pdf = write_resume_data_pdf(
+                plan, profile, pdf_path,
+                data=resume_data,
+                summary=summary, keep_source_path=typ_path,
+            )
+        except (ValueError, RuntimeError) as error:
+            return HTMLResponse(
+                _layout("Error", f"<p>Cannot render this resume: {_esc(error)}</p>"),
+                status_code=400,
+            )
         report = render_plan_markdown(adjusted, profile)
         from .diff import render_skill_diff_markdown
 
@@ -215,15 +272,15 @@ def create_app(
             json.dumps({**adjusted, "skill_diff": diff, "pdf": pdf}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        conn = _db()
-        get_or_create = get_company(conn, company) or upsert_company(conn, company)
-        _ = get_or_create
-        add_role(
-            conn, company, target_title, status="applied",
-            job_url=job_url, jd_text=jd_text,
-            resume_pdf=f"{slug}/resume.pdf",
-            plan_json=f"{slug}/resume-plan.json",
-        )
+        with db_session() as conn:
+            get_or_create = get_company(conn, company) or upsert_company(conn, company)
+            _ = get_or_create
+            add_role(
+                conn, company, target_title, status="applied",
+                job_url=job_url, jd_text=jd_text,
+                resume_pdf=f"{slug}/resume.pdf",
+                plan_json=f"{slug}/resume-plan.json",
+            )
         diff_rows = "".join(
             f"<tr><td>{_esc(r['name'])}</td><td>{_esc(r['priority'])}</td>"
             f"<td>{_esc(r['status'])}</td></tr>"

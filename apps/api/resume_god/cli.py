@@ -13,7 +13,7 @@ from .paths import default_db_path, default_profile_path
 from .tailor import build_tailoring_plan, load_profile, render_plan_markdown
 from .render import render_resume_html, render_resume_markdown
 from .rewrite import rewrite_plan
-from .typst import write_resume_pdf
+from .typst import write_resume_data_pdf
 from .diff import build_skill_diff, render_skill_diff_markdown
 
 
@@ -107,6 +107,11 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--summary", help="Optional user-reviewed summary")
     parser.add_argument(
+        "--font",
+        default=None,
+        help="Resume typeface (default: Calibri with automatic fallback)",
+    )
+    parser.add_argument(
         "--parser-provider",
         choices=("auto", "deterministic", "glm", "gemini"),
         default="auto",
@@ -117,6 +122,17 @@ def _build_tailor_parser() -> argparse.ArgumentParser:
         choices=("auto", "deterministic", "glm", "gemini"),
         default="auto",
         help="Constrained rewrite provider (default: auto with offline fallback)",
+    )
+    parser.add_argument(
+        "--select-provider",
+        choices=("auto", "deterministic", "glm", "gemini"),
+        default="auto",
+        help="Bullet selection provider: the LLM picks from graph-ranked evidence (default: auto with offline fallback)",
+    )
+    parser.add_argument(
+        "--data-output",
+        type=Path,
+        help="Keep the validated resume-data.json fed to Typst",
     )
     parser.add_argument("--page-budget-chars", type=int, default=3200)
     return parser
@@ -174,6 +190,8 @@ def _doctor_main() -> int:
     from .llm import active_provider_label
 
     print(f"LLM default (auto): {active_provider_label('auto')}")
+    print(f"Gemini model: {os.environ.get('GEMINI_MODEL', 'gemini-3-flash-preview')} (override with GEMINI_MODEL)")
+    print(f"GLM model: {os.environ.get('GLM_MODEL', 'glm-4.6')} (override with GLM_MODEL)")
     if not (profile_ok and typst_ok and web_ok):
         return 1
     return 0
@@ -216,6 +234,29 @@ def _tailor_main(argv: list[str]) -> int:
     rewrite_provider, rewrite_req, rewrite_req_error = resolve_or_none(
         args.rewrite_provider
     )
+    select_provider, select_req, select_req_error = resolve_or_none(
+        args.select_provider
+    )
+    from .resume_data import (
+        build_resume_data,
+        narrow_plan_ranking,
+        select_resume_bullets,
+        validate_resume_data,
+    )
+
+    # Stage 3 of the pipeline: the LLM selects from graph-ranked evidence.
+    selection = select_resume_bullets(
+        plan,
+        profile,
+        provider=select_provider,
+        max_select=args.max_achievements,
+    )
+    plan = narrow_plan_ranking(plan, selection["selected_ids"])
+    plan["llm_selection"] = {
+        **selection,
+        "requested": select_req,
+        "fallback_error": select_req_error or selection["fallback_error"],
+    }
     plan = rewrite_plan(
         plan,
         profile,
@@ -226,13 +267,27 @@ def _tailor_main(argv: list[str]) -> int:
     plan["rewrite_provider_requested"] = rewrite_req
     if rewrite_req_error and not plan.get("rewrite_provider_fallback_error"):
         plan["rewrite_provider_fallback_error"] = rewrite_req_error
-    adjusted, pdf = write_resume_pdf(
+    # Stage 4: deterministic transform to the Typst-consumed schema, then the
+    # grounding gate over the LLM-authored data.
+    resume_data = build_resume_data(
+        plan, profile, font=args.font, summary=args.summary
+    )
+    validation = validate_resume_data(resume_data, profile)
+    resume_data = validation["data"]
+    plan["resume_data_validation"] = {
+        "dropped_bullets": validation["dropped_bullets"],
+        "fallback_bullets": validation["fallback_bullets"],
+        "issues": validation["issues"],
+    }
+    adjusted, pdf = write_resume_data_pdf(
         plan,
         profile,
         args.out,
+        data=resume_data,
         summary=args.summary,
         typst_path=args.typst_bin,
         keep_source_path=args.source_output,
+        keep_data_path=args.data_output,
     )
 
     report_path = args.report or args.out.with_name(
@@ -249,6 +304,10 @@ def _tailor_main(argv: list[str]) -> int:
     parser_req = parsed_meta.get("provider_requested", parser_used)
     rewrite_used = adjusted.get("rewrite_provider", "deterministic")
     rewrite_req = adjusted.get("rewrite_provider_requested", rewrite_used)
+    selection_meta = adjusted.get("llm_selection", {})
+    select_used = selection_meta.get("provider", "deterministic")
+    select_req = selection_meta.get("requested", select_used)
+    validation_meta = adjusted.get("resume_data_validation", {})
     report += chr(10).join(
         [
             "## Providers",
@@ -259,12 +318,26 @@ def _tailor_main(argv: list[str]) -> int:
                 if parsed_meta.get("provider_fallback_error")
                 else ""
             ),
+            f"- Selection: requested **{select_req}**, used **{select_used}**"
+            + (
+                f" (fallback: {selection_meta.get('fallback_error')})"
+                if selection_meta.get("fallback_error")
+                else ""
+            )
+            + (
+                f" — dropped {selection_meta.get('dropped_ids', [])}, "
+                f"refilled {selection_meta.get('refilled_ids', [])}"
+                if selection_meta
+                else ""
+            ),
             f"- Rewriting: requested **{rewrite_req}**, used **{rewrite_used}**"
             + (
                 f" (fallback: {adjusted.get('rewrite_provider_fallback_error')})"
                 if adjusted.get("rewrite_provider_fallback_error")
                 else ""
             ),
+            f"- Resume-data validation: dropped **{validation_meta.get('dropped_bullets', [])}**, "
+            f"fallbacks **{validation_meta.get('fallback_bullets', [])}**",
             "",
         ]
     )
@@ -274,6 +347,8 @@ def _tailor_main(argv: list[str]) -> int:
             "",
             f"- PDF: `{pdf['output']}`",
             f"- Renderer: **{pdf['renderer']} {pdf['renderer_version']}**",
+            f"- Font: **{pdf.get('font_requested', 'Calibri')}**",
+            f"- Resume-data schema: **v{pdf.get('resume_data_version', '?')}** (Typst file import)",
             f"- Pages: **{pdf['page_count']}**",
             f"- Automatically trimmed bullets: **{len(pdf['trimmed_for_one_page'])}**",
             f"- PDF audit: **{'PASS' if pdf['audit_passed'] else 'FAIL'}**",
@@ -299,9 +374,127 @@ def _tailor_main(argv: list[str]) -> int:
     return 0 if pdf["audit_passed"] else 1
 
 
+def _build_render_pdf_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="resume-god render-pdf",
+        description=(
+            "Render the final PDF from a reviewed plan JSON. "
+            "Step 1 (AI generates JSON): resume-god tailor ... --json-report plan.json. "
+            "Step 2 (you review): edit rewritten_text/summary in plan.json. "
+            "Step 3 (this command): re-validates every edit against "
+            "master_profile.yaml and compiles the Typst PDF."
+        ),
+    )
+    parser.add_argument(
+        "--plan", required=True, type=Path, help="Reviewed plan JSON from tailor"
+    )
+    parser.add_argument("--profile", type=Path, default=None, help="Defaults to RESUME_GOD_PROFILE or the reviewed checkout profile")
+    parser.add_argument("--out", required=True, type=Path, help="Resume PDF path")
+    parser.add_argument(
+        "--source-output",
+        type=Path,
+        help="Keep the final generated Typst source file",
+    )
+    parser.add_argument(
+        "--typst-bin",
+        help="Typst executable (default: TYPST_BIN, .venv/bin/typst, then PATH)",
+    )
+    parser.add_argument("--summary", help="Optional user-reviewed summary override")
+    parser.add_argument(
+        "--font",
+        default=None,
+        help="Resume typeface (default: Calibri with automatic fallback)",
+    )
+    parser.add_argument(
+        "--data-output",
+        type=Path,
+        help="Keep the validated resume-data.json fed to Typst",
+    )
+    parser.add_argument(
+        "--report-json",
+        type=Path,
+        help="Write machine-readable {plan, validation, pdf} report",
+    )
+    return parser
+
+
+def _render_pdf_main(argv: list[str]) -> int:
+    parser = _build_render_pdf_parser()
+    args = parser.parse_args(argv)
+    profile_path = args.profile or default_profile_path()
+    profile = load_profile(profile_path)
+    plan = json.loads(args.plan.read_text(encoding="utf-8"))
+
+    from .rewrite import revalidate_plan_rewrites
+    from .resume_data import build_resume_data, validate_resume_data
+
+    try:
+        rejected = revalidate_plan_rewrites(plan, profile)
+    except ValueError as error:
+        print(f"Refusing to render: {error}", file=sys.stderr)
+        return 1
+    for achievement_id in rejected:
+        print(
+            f"Review edit for {achievement_id} introduced new claims; "
+            "fell back to the reviewed original.",
+            file=sys.stderr,
+        )
+
+    resume_data = build_resume_data(
+        plan, profile, font=args.font, summary=args.summary
+    )
+    validation = validate_resume_data(resume_data, profile)
+    resume_data = validation["data"]
+    if validation["issues"]:
+        print(
+            "Resume-data validation: "
+            + "; ".join(validation["issues"]),
+            file=sys.stderr,
+        )
+
+    adjusted, pdf = write_resume_data_pdf(
+        plan,
+        profile,
+        args.out,
+        data=resume_data,
+        summary=args.summary,
+        typst_path=args.typst_bin,
+        keep_source_path=args.source_output,
+        keep_data_path=args.data_output,
+    )
+
+    print(pdf["output"])
+    print(f"Pages: {pdf['page_count']}")
+    print(f"Font: {pdf.get('font_requested', 'Calibri')}")
+    print(f"Resume-data schema: v{pdf.get('resume_data_version', '?')}")
+    if args.report_json is not None:
+        args.report_json.parent.mkdir(parents=True, exist_ok=True)
+        args.report_json.write_text(
+            json.dumps(
+                {
+                    "plan": adjusted,
+                    "rejected_review_edits": rejected,
+                    "resume_data_validation": validation,
+                    "pdf": pdf,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        print(args.report_json.resolve())
+    if rejected:
+        print(f"Rejected review edits (used original): {', '.join(rejected)}")
+    if pdf["trimmed_for_one_page"]:
+        print(
+            "Trimmed for one page: " + ", ".join(pdf["trimmed_for_one_page"])
+        )
+    return 0 if pdf["audit_passed"] else 1
+
+
 def _company_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="resume-god company")
-    parser.add_argument("--db", type=Path, default=None)
     sub = parser.add_subparsers(dest="action", required=True)
     add = sub.add_parser("add", help="Add or update a company")
     add.add_argument("name")
@@ -343,7 +536,6 @@ def _company_main(argv: list[str]) -> int:
 
 def _role_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="resume-god role")
-    parser.add_argument("--db", type=Path, default=None)
     sub = parser.add_subparsers(dest="action", required=True)
     add = sub.add_parser("add", help="Record a role application for a company")
     add.add_argument("--company", required=True)
@@ -418,6 +610,8 @@ def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments and arguments[0] == "tailor":
         return _tailor_main(arguments[1:])
+    if arguments and arguments[0] == "render-pdf":
+        return _render_pdf_main(arguments[1:])
     if arguments and arguments[0] == "doctor":
         return _doctor_main()
     if arguments and arguments[0] == "company":

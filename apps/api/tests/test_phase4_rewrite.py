@@ -3,7 +3,11 @@ from pathlib import Path
 
 from resume_god.assembly import build_assembly
 from resume_god.render import render_resume_html, render_resume_markdown
-from resume_god.rewrite import rewrite_plan, validate_rewrite
+from resume_god.rewrite import (
+    revalidate_plan_rewrites,
+    rewrite_plan,
+    validate_rewrite,
+)
 from resume_god.tailor import build_tailoring_plan, load_profile
 
 from tests.test_phase1_tailoring import AUTOMATION_JD
@@ -160,6 +164,41 @@ class RewriteAssemblyTests(unittest.TestCase):
                 parent["achievement_ids"],
                 sorted(parent["achievement_ids"], key=lambda item: positions[item]),
             )
+
+
+    def test_review_gate_accepts_safe_edit_and_rejects_invented_claims(self):
+        reviewed = rewrite_plan(self.plan, self.profile)
+        target = "achievement_eventmcp_server"
+        reviewed["rewrites"][target]["rewritten_text"] = (
+            "Built an MCP server in Go exposing Google Calendar as a callable "
+            "tool layer for LLM agents."
+        )
+        reviewed["rewrites"][target]["used_rewrite"] = True
+        rejected = revalidate_plan_rewrites(reviewed, self.profile)
+        self.assertEqual(rejected, [])
+        self.assertTrue(reviewed["rewrites"][target]["used_rewrite"])
+        self.assertTrue(all(reviewed["rewrite_audit"].values()))
+
+    def test_review_gate_falls_back_when_edit_invents_technology(self):
+        reviewed = rewrite_plan(self.plan, self.profile)
+        target = "achievement_eventmcp_server"
+        reviewed["rewrites"][target]["rewritten_text"] = (
+            "Built 5 MCP servers in Go, Docker, and Kubernetes for LLM agents."
+        )
+        reviewed["rewrites"][target]["used_rewrite"] = True
+        rejected = revalidate_plan_rewrites(reviewed, self.profile)
+        self.assertEqual(rejected, [target])
+        record = reviewed["rewrites"][target]
+        self.assertFalse(record["used_rewrite"])
+        self.assertEqual(record["rewritten_text"], record["source_text"])
+        self.assertTrue(all(reviewed["rewrite_audit"].values()))
+
+    def test_review_gate_refuses_edited_reviewed_facts(self):
+        reviewed = rewrite_plan(self.plan, self.profile)
+        target = "achievement_eventmcp_server"
+        reviewed["rewrites"][target]["source_text"] = "Tampered source text."
+        with self.assertRaisesRegex(ValueError, "must match master_profile"):
+            revalidate_plan_rewrites(reviewed, self.profile)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ from .tailor import (
     load_profile,
     render_plan_markdown,
 )
-from .typst import write_resume_pdf
+from .typst import write_resume_data_pdf
 
 
 APPLICATION_MANIFEST_VERSION = 1
@@ -285,11 +285,18 @@ def build_application_packets(
             pdf_result: dict[str, Any] | None = None
 
             if include_pdfs:
+                from .resume_data import build_resume_data, validate_resume_data
+
                 staged_pdf = staging_root / f"{application['id']}.pdf"
-                report_plan, pdf_result = write_resume_pdf(
+                resume_data = build_resume_data(
+                    assembled, profile, font=None, summary=summary
+                )
+                resume_data = validate_resume_data(resume_data, profile)["data"]
+                report_plan, pdf_result = write_resume_data_pdf(
                     assembled,
                     profile,
                     staged_pdf,
+                    data=resume_data,
                     summary=summary,
                     typst_path=typst_path,
                 )

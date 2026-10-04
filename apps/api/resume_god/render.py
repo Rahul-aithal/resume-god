@@ -167,6 +167,32 @@ def _format_date_range(date_range: dict[str, Any] | None) -> str | None:
     return start or end
 
 
+def strip_url_scheme(url: str | None) -> str:
+    """basic-resume prefixes links with https://, so store bare host/path."""
+    if not url:
+        return ""
+    text = str(url).strip()
+    for prefix in ("https://", "http://"):
+        if text.lower().startswith(prefix):
+            return text[len(prefix):]
+    return text
+
+
+def split_date_range(date_range: dict[str, Any] | None) -> tuple[str, str]:
+    """Split a profile date range into (start, end) display strings."""
+    formatted = _format_date_range(date_range)
+    if not formatted:
+        return "", ""
+    if formatted.startswith("Expected "):
+        return "", formatted.removeprefix("Expected ")
+    # _format_date_range joins with " – " (en dash with spaces).
+    for sep in (" – ", " — ", " - "):
+        if sep in formatted:
+            start, end = formatted.split(sep, 1)
+            return start.strip(), end.strip()
+    return formatted.strip(), ""
+
+
 def _format_issue_date(value: str) -> str:
     """Render a canonical profile date without claiming a timezone."""
     year, month, _day = value.split("-", 2)

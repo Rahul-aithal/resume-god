@@ -39,6 +39,31 @@ CREATE TABLE IF NOT EXISTS roles (
   UNIQUE(company_id, target_title)
 );
 CREATE INDEX IF NOT EXISTS idx_roles_company ON roles(company_id);
+CREATE TABLE IF NOT EXISTS applications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'applied',
+  job_url TEXT DEFAULT '',
+  salary TEXT DEFAULT '',
+  location TEXT DEFAULT '',
+  jd_text TEXT DEFAULT '',
+  resume_pdf TEXT DEFAULT '',
+  plan_json TEXT DEFAULT '',
+  applied_on TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_applications_role ON applications(role_id);
+-- Backfill one history row per pre-existing role (idempotent).
+INSERT INTO applications
+  (role_id, status, job_url, salary, location, jd_text,
+   resume_pdf, plan_json, applied_on, notes, created_at)
+SELECT id, status, job_url, salary, location, jd_text,
+  resume_pdf, plan_json, applied_on, notes, created_at
+FROM roles
+WHERE NOT EXISTS (
+  SELECT 1 FROM applications WHERE applications.role_id = roles.id
+);
 """
 
 ROLE_STATUSES = (
@@ -170,7 +195,20 @@ def add_role(
         "SELECT * FROM roles WHERE company_id = ? AND target_title = ?",
         (company["id"], target_title),
     ).fetchone()
-    return dict(row)
+    role = dict(row)
+    # Every apply is a history row; the role row stays the current state.
+    conn.execute(
+        """INSERT INTO applications
+           (role_id, status, job_url, salary, location,
+            jd_text, resume_pdf, plan_json, applied_on, notes, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            role["id"], status, job_url, salary, location,
+            jd_text, resume_pdf, plan_json, applied_on or now[:10], notes, now,
+        ),
+    )
+    conn.commit()
+    return role
 
 
 def set_role_status(
@@ -183,26 +221,52 @@ def set_role_status(
     row = conn.execute("SELECT * FROM roles WHERE id = ?", (role_id,)).fetchone()
     if not row:
         raise ValueError(f"Unknown role id: {role_id}")
-    return dict(row)
+    role = dict(row)
+    conn.execute(
+        """INSERT INTO applications
+           (role_id, status, job_url, salary, location,
+            jd_text, resume_pdf, plan_json, applied_on, notes, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            role["id"], role["status"], role["job_url"], role["salary"],
+            role["location"], role["jd_text"], role["resume_pdf"],
+            role["plan_json"], role["applied_on"], role["notes"], _now(),
+        ),
+    )
+    conn.commit()
+    return role
 
 
 def list_roles(
-    conn: sqlite3.Connection, *, company_name: str | None = None
+    conn: sqlite3.Connection,
+    *,
+    company_name: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
+    base = """SELECT r.*, c.name AS company_name FROM roles r
+               JOIN companies c ON c.id = r.company_id"""
+    params: list[Any] = []
     if company_name:
         company = get_company(conn, company_name)
         if not company:
             return []
-        rows = conn.execute(
-            """SELECT r.*, c.name AS company_name FROM roles r
-               JOIN companies c ON c.id = r.company_id
-               WHERE r.company_id = ? ORDER BY r.created_at DESC""",
-            (company["id"],),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """SELECT r.*, c.name AS company_name FROM roles r
-               JOIN companies c ON c.id = r.company_id
-               ORDER BY r.created_at DESC"""
-        ).fetchall()
+        base += " WHERE r.company_id = ?"
+        params.append(company["id"])
+    base += " ORDER BY r.created_at DESC"
+    if limit is not None:
+        base += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+    rows = conn.execute(base, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def list_applications(
+    conn: sqlite3.Connection, role_id: int
+) -> list[dict[str, Any]]:
+    """Full apply history for one role, oldest first."""
+    rows = conn.execute(
+        "SELECT * FROM applications WHERE role_id = ? ORDER BY created_at ASC, id ASC",
+        (role_id,),
+    ).fetchall()
     return [dict(row) for row in rows]

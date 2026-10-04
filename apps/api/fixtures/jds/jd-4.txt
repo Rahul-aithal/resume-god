@@ -1,0 +1,72 @@
+At Rox, we believe in empowering people to do their best work.
+
+Our platform supercharges sellers with autonomous revenue agents to do the manual work so they can focus on what they do best: selling. Just as coding agents 10x’d engineering, revenue agents 10x customer work.
+
+We are reimagining the revenue stack by building the world’s first revenue operating system, from the application layer to the system of context. With Rox, humans are evolving to orchestrators while agents manage the end-to-end customer lifecycle.
+
+Rox powers Global 2000 leaders in banking, hardware, construction, and sovereign AI, while serving dominant AI winners like Ramp and Cognition.
+
+Underlying all of this success is a unwavering, shared belief in the mission, with an unreasonable commitment of doing whatever it takes to make it a reality.
+
+The Team
+
+Nothing is possible without the world-class team, assembled to redefine how businesses operate.
+
+Members On Our Team Have
+
+    Founded and exited successful companies
+    Held the highest positions at Google, AWS, Confluent, and New Relic
+    Won IMO and IOI gold medals
+    Published field-defining papers
+
+We’re backed by the best, having raised $50M from Sequoia (Alfred Lin), General Catalyst (Hemant Taneja), Google Ventures, Elad Gil, and Chris Ré.
+
+Core Principles
+
+Taste: Craft beautiful experiences.
+
+No matter how small, we strive to make sure every detail is right. We care deeply about every interaction, both in terms of whether it helps the seller get the job done, but also how the product makes them feel. We get a visceral feeling when something is off and stop at nothing to make sure we make it right. We never settle, continuously exploring ways to delight sellers.
+
+Obsession: Commit unreasonably.
+
+In all aspects of our craft, we commit. We not only are immediately reactive to customers’ requests but are proactive about driving value even before they ask. We are also obsessive about always learning and honing our craft, improving ourselves and product every single day.
+
+Action: Get it done.
+
+Talking is easy but the difference comes from the execution. We lean heavily towards making thoughtful yet fast decisions and delivering immediately. We play in a field where trust is paramount. We earn the trust and right to empower the best sellers by forging a history of over-delivering on the promise at record speed.
+
+Your Role
+
+As a Product Engineer at Rox, you’ll build the next generation of AI-native interfaces powering the world’s top revenue teams. You’ll work across the full lifecycle of product development, from speaking with users and prototyping solutions to shipping fast, reliable features in production.
+
+You’ll partner closely with design, infra, and applied AI teams to craft seamless multi-agent workflows, all while holding a high bar for user experience and interface quality. This is a high-ownership role where you’ll be expected to move quickly, sweat the details, and make thoughtful tradeoffs between speed, quality, and value.
+
+If you’re passionate about building beautiful, high-performance interfaces and want to help define how agents and humans collaborate in software, we’d love to work with you.
+
+Responsibilities
+
+    High Ownership: Ability to do E2E design and implement scalable systems independently, define/understand requirements and write clean code
+    Customers First: Engage closely with customers to understand requests, join customer calls and ship out solutions working closely with product and AI engineers
+    Operations: Be obsessed about operations and strive to ensure that there is minimal to no downtime or impact to the customer 
+    Bias for action: Ability to work and ship in a fast paced environment with weekly deliverables; has founder-energy to work with as minimal direction as possible
+    Be Curious: Curious to learn, work hard and have a growth mindset
+
+Qualifications
+
+    BS or MS in Computer Science or related field; 1+ years of professional experience is a plus
+    Strong product sense and engineering ability – you’ve shipped thoughtful, polished features end-to-end
+    Experience with Next.js and Typescript
+    Proficiency in Python and ability to work across the stack is preferable (Flask, AWS, etc.), back-end is not required 
+    A bias for action: you move fast, learn quickly, and default to shipping
+    Comfort working in a fast-paced, ambiguous environment with minimal direction
+    Curiosity about AI, agentic interfaces, and how to make them intuitive and useful
+    Be located in or willing to relocate to Bangalore
+
+Benefits
+
+    Competitive pay with considerable equity upside
+    Health Insurance
+
+Apply
+
+To apply, please fill out the application form. We're looking forward to connecting with you!

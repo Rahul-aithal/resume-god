@@ -131,6 +131,89 @@ Parsed requirements: {parsed}
 Bullets: {payload}"""
 
 
+def revalidate_plan_rewrites(
+    plan: dict[str, Any],
+    profile: dict[str, Any],
+) -> list[str]:
+    """Re-check a reviewed plan's rewrites against the reviewed profile.
+
+    Used by the ``render-pdf --plan`` review gate: the user may edit
+    ``rewritten_text`` values in the AI-generated JSON, but edits that
+    introduce new skills, technologies, or numbers fall back to the reviewed
+    source bullet instead of reaching the PDF. Returns the rejected IDs.
+
+    Raises ``ValueError`` when a record's ``source_text`` no longer matches
+    the reviewed profile (reviewed facts themselves must not be edited).
+    """
+    achievements = {item["id"]: item for item in profile["achievements"]}
+    rejected: list[str] = []
+    records = plan.get("rewrites", {})
+    for achievement_id, record in records.items():
+        if achievement_id not in achievements:
+            raise ValueError(
+                f"Reviewed plan references unknown achievement: {achievement_id}"
+            )
+        source_text = achievements[achievement_id]["text"]
+        if record.get("source_text") != source_text:
+            raise ValueError(
+                f"Reviewed plan edits reviewed facts for {achievement_id}: "
+                "source_text must match master_profile.yaml; "
+                "only rewritten_text may be reviewed."
+            )
+        if not record.get("used_rewrite"):
+            continue
+        passed, issues = validate_rewrite(
+            source_text,
+            record.get("rewritten_text", ""),
+            achievements[achievement_id],
+            profile,
+        )
+        if passed:
+            record["validation_passed"] = True
+            record["issues"] = []
+        else:
+            rejected.append(achievement_id)
+            record["rewritten_text"] = source_text
+            record["status"] = "fallback_original"
+            record["used_rewrite"] = False
+            record["validation_passed"] = False
+            record["issues"] = [
+                f"review edit rejected, fell back to reviewed original: {issue}"
+                for issue in issues
+            ]
+    used_count = sum(1 for record in records.values() if record.get("used_rewrite"))
+    plan["rewrite_summary"] = {
+        "selected_achievement_count": len(records),
+        "used_rewrite_count": used_count,
+        "fallback_count": len(records) - used_count,
+    }
+    plan["rewrite_audit"] = {
+        "all_rewritten_achievements_exist": all(
+            item in achievements for item in records
+        ),
+        "every_source_text_matches_reviewed_profile": all(
+            record["source_text"] == achievements[item]["text"]
+            for item, record in records.items()
+        ),
+        "every_used_rewrite_passed_grounding_validation": all(
+            record["validation_passed"]
+            for record in records.values()
+            if record["used_rewrite"]
+        ),
+        "every_failed_rewrite_falls_back_to_original": all(
+            record["rewritten_text"] == record["source_text"]
+            for record in records.values()
+            if not record["used_rewrite"]
+        ),
+        "no_new_technology_or_numeric_claims": all(
+            record["validation_passed"]
+            for record in records.values()
+            if record["used_rewrite"]
+        ),
+    }
+    return rejected
+
+
 def rewrite_plan(
     plan: dict[str, Any],
     profile: dict[str, Any],

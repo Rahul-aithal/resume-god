@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -14,20 +15,52 @@ class LLMError(RuntimeError):
     pass
 
 
+RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
+RETRY_DELAYS = (1.0, 2.0, 4.0)
+
+
+def _balanced_object_spans(text: str) -> list[str]:
+    """Yield candidate {...} spans with correct brace/string/escape handling."""
+    spans: list[str] = []
+    depth = 0
+    start = -1
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    spans.append(text[start : index + 1])
+                    start = -1
+    return spans
+
+
 def _extract_json(text: str) -> dict[str, Any]:
     fenced = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
     candidate = fenced.group(1) if fenced else text
-    start = candidate.find("{")
-    end = candidate.rfind("}")
-    if start < 0 or end < start:
-        raise LLMError("Model response did not contain a JSON object")
-    try:
-        value = json.loads(candidate[start : end + 1])
-    except json.JSONDecodeError as error:
-        raise LLMError(f"Model returned invalid JSON: {error}") from error
-    if not isinstance(value, dict):
-        raise LLMError("Model JSON must be an object")
-    return value
+    for span in _balanced_object_spans(candidate):
+        try:
+            value = json.loads(span)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    raise LLMError("Model response did not contain a JSON object")
 
 
 def _post_json(url: str, *, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
@@ -37,11 +70,28 @@ def _post_json(url: str, *, headers: dict[str, str], payload: dict[str, Any]) ->
         headers={"Content-Type": "application/json", **headers},
         method="POST",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=90) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        raise LLMError(f"LLM request failed: {error}") from error
+    last_error: Exception | None = None
+    for attempt in range(len(RETRY_DELAYS) + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response:
+                raw = response.read().decode("utf-8")
+        except urllib.error.HTTPError as error:
+            last_error = error
+            if error.code not in RETRYABLE_STATUS or attempt >= len(RETRY_DELAYS):
+                break
+            time.sleep(RETRY_DELAYS[attempt])
+            continue
+        except (urllib.error.URLError, TimeoutError) as error:
+            last_error = error
+            if attempt >= len(RETRY_DELAYS):
+                break
+            time.sleep(RETRY_DELAYS[attempt])
+            continue
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as error:
+            raise LLMError(f"LLM request failed: {error}") from error
+    raise LLMError(f"LLM request failed: {last_error}")
 
 
 class GLMProvider:
@@ -98,7 +148,7 @@ class GeminiProvider:
             ),
             None,
         )
-        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")
         if not self.api_key:
             raise LLMError("Set GEMINI_API_KEY for --provider gemini")
 

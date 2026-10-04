@@ -1,0 +1,67 @@
+Company:Delta Capita
+About the job
+
+Job Description
+
+Delta Capita is growing the engineering team behind Report Hub, our market-leading regulatory reporting platform used by global financial institutions.
+
+We're looking for talented Full Stack Developers, from early-career engineers through to experienced senior developers, to help design, build and support scalable, cloud-native applications that solve complex regulatory and operational challenges for our clients.
+
+Job Requirements
+
+What You'll Do
+
+    Design, develop and support modern full stack applications.
+    Build scalable front-end and back-end solutions.
+    Work closely with Product Owners, Business Analysts, QA and DevOps teams.
+    Participate in the full software development lifecycle.
+    Troubleshoot issues, improve performance and contribute to automation initiatives.
+    Collaborate within Agile delivery teams to deliver high-quality solutions.
+
+Qualifications & Experience
+
+Junior Developers
+
+    Degree in Computer Science, Software Engineering, Information Technology or equivalent practical experience.
+    Commercial experience, internships, graduate programmes or personal projects demonstrating software development capability.
+    Strong technical foundation and willingness to learn modern engineering practices.
+
+Senior Developers
+
+    Significant experience delivering enterprise-scale applications.
+    Proven ability to lead technical design and mentor other developers.
+    Strong understanding of application architecture, scalability and security.
+    Experience engaging with both technical and business stakeholders.
+
+Desired Skills
+
+    Front-end development using React, Angular, JavaScript or TypeScript.
+    Back-end development with .NET/C#, Java, Node.js or Python.
+    REST APIs and microservices architecture.
+    Azure or other cloud platforms.
+    Git, CI/CD pipelines, Docker and Kubernetes.
+    SQL and NoSQL databases.
+
+Why Join Delta Capita?
+
+    Work on a strategic platform used by leading financial institutions.
+    Exposure to modern cloud, data and software engineering technologies.
+    Opportunities for learning, certification and career progression.
+    Collaborative and supportive engineering culture.
+    Competitive salary and benefits package.
+
+Join Delta Capita and help build innovative, cloud-native solutions that power regulatory reporting for some of the world's leading financial institutions.
+
+How We Work
+
+Delta Capita is an equal opportunity employer. We positively encourage applications from suitably qualified and eligible candidates regardless of age, colour, disability, national origin, ancestry, race, religion, gender, sexual orientation, gender identity and/or expression, veteran status, genetic information, or any other status protected by applicable law.
+
+We will ensure that individuals with disabilities are provided reasonable accommodation to participate in the job application or interview process, to perform essential job functions, and to receive other benefits and privileges of employment. If you require any reasonable adjustments through your interview process, please use the designated space within the application questionnaire.
+
+This is a permanent, full-time position located in Bangalore or Pune with hybrid working. As the selection and interview process is ongoing, please submit your application in English as soon as possible, if your profile is selected, a member of our team will contact you within 4 weeks.
+
+Our 3 Offerings Are
+
+     Managed Services
+     Consulting & Solutions
+     Technology

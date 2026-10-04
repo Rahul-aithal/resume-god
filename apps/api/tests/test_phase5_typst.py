@@ -9,9 +9,18 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
+from resume_god.resume_data import (
+    RESUME_DATA_VERSION,
+    build_resume_data,
+    validate_resume_data,
+)
 from resume_god.rewrite import rewrite_plan
 from resume_god.tailor import build_tailoring_plan, load_profile
-from resume_god.typst import render_resume_typst, typst_binary, write_resume_pdf
+from resume_god.typst import (
+    TEMPLATE_PATH,
+    typst_binary,
+    write_resume_data_pdf,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +50,13 @@ class TypstRenderingTests(unittest.TestCase):
     def jd_path(self, number):
         return ROOT / "fixtures" / "jds" / f"jd-{number}.txt"
 
+    def _render_pdf(self, plan, output, **kwargs):
+        data = build_resume_data(plan, self.profile, font=None, summary=None)
+        validated = validate_resume_data(data, self.profile)["data"]
+        return write_resume_data_pdf(
+            plan, self.profile, output, data=validated, **kwargs
+        )
+
     def test_fixture_jds_each_render_one_page_pdf(self):
         with tempfile.TemporaryDirectory() as directory:
             for number, title in TITLES.items():
@@ -53,11 +69,7 @@ class TypstRenderingTests(unittest.TestCase):
                     )
                     assembled = rewrite_plan(plan, self.profile)
                     output = Path(directory) / f"jd-{number}.pdf"
-                    adjusted, result = write_resume_pdf(
-                        assembled,
-                        self.profile,
-                        output,
-                    )
+                    adjusted, result = self._render_pdf(assembled, output)
 
                     self.assertEqual(result["page_count"], 1)
                     self.assertTrue(result["audit_passed"])
@@ -84,11 +96,7 @@ class TypstRenderingTests(unittest.TestCase):
                 page_budget_chars=1_000_000,
             )
             output = Path(directory) / "overflow.pdf"
-            adjusted, result = write_resume_pdf(
-                assembled,
-                self.profile,
-                output,
-            )
+            adjusted, result = self._render_pdf(assembled, output)
 
             self.assertEqual(result["page_count"], 1)
             self.assertTrue(result["trimmed_for_one_page"])
@@ -102,7 +110,22 @@ class TypstRenderingTests(unittest.TestCase):
             self.assertFalse(trimmed & selected)
             self.assertEqual(len(PdfReader(str(output)).pages), 1)
 
-    def test_typst_source_is_single_column_a4_and_escapes_untrusted_text(self):
+    def test_static_template_renders_all_sections(self):
+        source = TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertIn('@preview/basic-resume:0.2.9', source)
+        self.assertIn('#show: resume.with(', source)
+        self.assertIn('paper: "a4"', source)
+        self.assertIn('json("resume-data.json")', source)
+        self.assertIn("== Professional Summary", source)
+        self.assertIn("== Technical Skills", source)
+        self.assertIn("#work(", source)
+        self.assertIn("#project(", source)
+        self.assertIn("#edu(", source)
+        self.assertIn("Liberation Sans", source)
+        self.assertNotIn("#let section(title)", source)
+        self.assertNotIn("#entry-heading", source)
+
+    def test_custom_font_rides_in_json_with_template_fallbacks(self):
         plan = rewrite_plan(
             build_tailoring_plan(
                 self.profile,
@@ -112,18 +135,57 @@ class TypstRenderingTests(unittest.TestCase):
             ),
             self.profile,
         )
-        source = render_resume_typst(plan, self.profile)
-        self.assertIn('@preview/basic-resume:0.2.9', source)
-        self.assertIn('#show: resume.with(', source)
-        self.assertIn('paper: "a4"', source)
-        self.assertIn("New Computer Modern", source)
-        self.assertIn("== Professional Summary", source)
-        self.assertIn("== Technical Skills", source)
-        self.assertIn("#work(", source)
-        self.assertIn("#project(", source)
-        self.assertIn("#edu(", source)
-        self.assertNotIn("#let section(title)", source)
-        self.assertNotIn("#entry-heading", source)
+        data = build_resume_data(
+            plan, self.profile, font="Times New Roman", summary=None
+        )
+        self.assertEqual(data["font"], "Times New Roman")
+        source = TEMPLATE_PATH.read_text(encoding="utf-8")
+        self.assertIn("Liberation Sans", source)
+
+    def test_resume_data_pdf_uses_static_template_with_file_import(self):
+        plan = rewrite_plan(
+            build_tailoring_plan(
+                self.profile,
+                self.jd_path(1).read_text(encoding="utf-8"),
+                target_title="Software Developer",
+                max_achievements=7,
+            ),
+            self.profile,
+        )
+        data = build_resume_data(plan, self.profile, font=None, summary=None)
+        report = validate_resume_data(data, self.profile)
+        self.assertEqual(report["issues"], [])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "resume.pdf"
+            data_output = Path(directory) / "resume-data.json"
+            source_output = Path(directory) / "resume.typ"
+            adjusted, result = write_resume_data_pdf(
+                plan,
+                self.profile,
+                output,
+                data=report["data"],
+                keep_source_path=source_output,
+                keep_data_path=data_output,
+            )
+            self.assertEqual(result["page_count"], 1)
+            self.assertTrue(result["audit_passed"])
+            self.assertEqual(result["resume_data_version"], RESUME_DATA_VERSION)
+            self.assertEqual(result["font_requested"], "Calibri")
+            self.assertEqual(len(PdfReader(str(output)).pages), 1)
+            extracted = PdfReader(str(output)).pages[0].extract_text() or ""
+            for token in (
+                "Rahul Aithal",
+                "Professional Summary",
+                "Technical Skills",
+                "Work Experience",
+            ):
+                self.assertIn(token, extracted)
+            # The staged source is the static template importing the JSON file.
+            source = source_output.read_text(encoding="utf-8")
+            self.assertIn('json("resume-data.json")', source)
+            self.assertNotIn("Rahul Aithal", source)
+            kept = json.loads(data_output.read_text(encoding="utf-8"))
+            self.assertEqual(kept["version"], RESUME_DATA_VERSION)
 
     def test_missing_typst_binary_has_actionable_error(self):
         if Path(".venv/bin/typst").exists() and not shutil.which("typst"):
@@ -140,6 +202,12 @@ class TypstRenderingTests(unittest.TestCase):
 
 @unittest.skipUnless(typst_available(), "Typst is required for the PDF CLI")
 class TypstCliTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.profile = load_profile(PROFILE_PATH)
+
+    def jd_path(self, number):
+        return ROOT / "fixtures" / "jds" / f"jd-{number}.txt"
     def test_tailor_command_writes_pdf_report_and_json(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "resume.pdf"
@@ -184,6 +252,68 @@ class TypstCliTests(unittest.TestCase):
             self.assertIn("assembly", machine)
             self.assertIn("rewrites", machine)
             self.assertTrue((Path(directory) / "resume.typ").is_file())
+
+
+    def test_render_pdf_command_renders_reviewed_plan_json(self):
+        plan = rewrite_plan(
+            build_tailoring_plan(
+                self.profile,
+                self.jd_path(1).read_text(encoding="utf-8"),
+                target_title="Software Developer",
+                max_achievements=7,
+            ),
+            self.profile,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            plan_path = Path(directory) / "reviewed-plan.json"
+            output = Path(directory) / "resume.pdf"
+            source_output = Path(directory) / "resume.typ"
+            data_output = Path(directory) / "resume-data.json"
+            report_json = Path(directory) / "render-report.json"
+            # Simulate the user review step: keep one safe AI-style edit.
+            target = next(iter(plan["rewrites"]))
+            source_text = plan["rewrites"][target]["source_text"]
+            plan["rewrites"][target]["rewritten_text"] = source_text.rstrip(".") + "."
+            plan["rewrites"][target]["used_rewrite"] = True
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "resume_god.cli",
+                    "render-pdf",
+                    "--plan",
+                    str(plan_path),
+                    "--profile",
+                    str(PROFILE_PATH),
+                    "--out",
+                    str(output),
+                    "--font",
+                    "Times New Roman",
+                    "--source-output",
+                    str(source_output),
+                    "--data-output",
+                    str(data_output),
+                    "--report-json",
+                    str(report_json),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                cwd=ROOT,
+            )
+
+            self.assertIn("resume.pdf", completed.stdout)
+            self.assertEqual(len(PdfReader(str(output)).pages), 1)
+            # The staged source is static; the font rides in the JSON file.
+            source = source_output.read_text(encoding="utf-8")
+            self.assertIn('json("resume-data.json")', source)
+            kept = json.loads(data_output.read_text(encoding="utf-8"))
+            self.assertEqual(kept["font"], "Times New Roman")
+            machine = json.loads(report_json.read_text(encoding="utf-8"))
+            self.assertIn("plan", machine)
+            self.assertIn("pdf", machine)
+            self.assertEqual(machine["pdf"]["page_count"], 1)
 
 
 if __name__ == "__main__":

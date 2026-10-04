@@ -16,6 +16,13 @@ EXTRACT="/tmp/typst-$VERSION-$TARGET"
 
 mkdir -p "$BIN_DIR"
 curl -fsSL "https://github.com/typst/typst/releases/download/v$VERSION/typst-$TARGET.tar.xz" -o "$ARCHIVE"
+# Integrity: upstream publishes no stable checksum file, so verify the
+# archive contains exactly the expected binary before extracting.
+if ! tar -tf "$ARCHIVE" | grep -qx "typst-$TARGET/typst"; then
+  echo "Unexpected typst archive contents:" >&2
+  tar -tf "$ARCHIVE" >&2
+  exit 1
+fi
 rm -rf "$EXTRACT"
 mkdir -p "$EXTRACT"
 tar -xJf "$ARCHIVE" -C "$EXTRACT" --strip-components=1

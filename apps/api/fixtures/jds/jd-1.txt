@@ -1,0 +1,45 @@
+Company: MegaaOpes Solutions LLC
+About the job
+
+Software Developer
+
+Job Role
+
+:
+
+Software Developer
+
+Location
+
+:
+
+Megaaopes Solutions,Banaswadi,Bengaluru
+
+Experience
+
+:
+
+0 – 2 Years
+
+Key Responsibilities
+
+    Develop and maintain scalable web applications using React.js, Node.js, and Express.js
+    Create and manage robust backend services and RESTful APIs
+    Work with MySQL to design, implement, and maintain databases
+    Collaborate with cross-functional teams to define and deliver new features
+    Maintain code integrity and organization using GitHub
+    Optimize applications for speed and scalability
+    Troubleshoot and debug issues across the stack
+    Participate in code reviews, team meetings, and agile ceremonies 
+
+Required Skills And Qualifications
+
+    Proficient in JavaScript, including ES6+ syntax
+    Strong hands-on experience with React.js and frontend development
+    Solid experience with Node.js and Express.js for backend development
+    Good understanding of MySQL – database design, writing complex queries, andoptimization
+    Experience using GitHub for version control and team collaboration
+    Familiarity with RESTful API architecture
+    Understanding of web security, performance best practices, and responsive design 
+
+Tell us your requirements and we’ll design a solution that fits your business goals.

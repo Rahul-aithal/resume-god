@@ -7,6 +7,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# NOTE: this file lives at apps/api/resume_god/paths.py, so parents[1] is
+# apps/api (the Python project root holding master_profile.yaml). Do not add
+# depth-sensitive parents[N] lookups here — the package also ships inside the
+# api container where the checkout depth differs.
 
 
 def default_profile_path() -> Path:
