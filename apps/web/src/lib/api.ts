@@ -1,5 +1,6 @@
 import type {
   ApplicationHistoryEntry,
+  AuthProvidersInfo,
   Company,
   CompanyDetail,
   CompanyInput,
@@ -76,6 +77,10 @@ export function fetchProviders(): Promise<ProvidersStatus> {
 
 export function fetchMe(): Promise<MeInfo> {
   return request<MeInfo>("/auth/me");
+}
+
+export function fetchAuthProviders(): Promise<AuthProvidersInfo> {
+  return request<AuthProvidersInfo>("/auth/providers");
 }
 
 export async function logout(): Promise<void> {

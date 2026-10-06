@@ -21,7 +21,11 @@ services:
       # Keep the container venv intact when bind-mounting source.
       - api-venv:/app/.venv
     working_dir: /app
-    command: uv run python -m resume_god.cli web --host 0.0.0.0 --port 8000
+    # --proxy-headers matches the prod container: vite/nginx is the sole
+    # ingress on the compose network, so forwarded headers are trusted.
+    command: >-
+      uv run python -m resume_god.cli web --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips=*
 
   web:
     # Dev image with bun; the prod image (nginx) cannot run vite.

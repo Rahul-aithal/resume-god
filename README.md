@@ -271,6 +271,18 @@ Register the callback URI matching how you browse:
 | host dev (:8000) | `http://localhost:8000/api/auth/callback/google` |
 | docker dev (:5173) | `http://localhost:5173/api/auth/callback/google` |
 
+You do not have to guess: the login page queries `GET /api/auth/providers`
+and displays the **exact** redirect URI the server will send (with a copy
+button). Register that value character for character — including the port.
+If Google shows `redirect_uri_mismatch`, compare its error detail with the
+URI on the login page.
+
+Behind a different proxy or TLS terminator, force the public origin once:
+
+```text
+OAUTH_REDIRECT_BASE_URL=https://resume.example.com
+```
+
 Without credentials the login button surfaces the setup hint (HTTP 503)
 instead of crashing.
 

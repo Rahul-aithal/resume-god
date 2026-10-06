@@ -81,6 +81,53 @@ class AuthTests(unittest.TestCase):
                 location,
             )
 
+    def test_auth_providers_reports_redirect_uri(self):
+        import os
+
+        with tempfile.TemporaryDirectory() as directory:
+            client = make_client(directory)
+            response = client.get("/api/auth/providers")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertFalse(body["google"]["configured"])
+            self.assertEqual(body["google"]["login_path"], "/api/auth/login/google")
+            self.assertEqual(body["base_url_source"], "request")
+            self.assertTrue(body["redirect_uri"].endswith("/api/auth/callback/google"))
+
+    def test_oauth_base_url_override_fixes_redirect_uri(self):
+        import os
+        from urllib.parse import parse_qs, urlparse
+
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "GOOGLE_CLIENT_ID": "test-cid",
+                    "GOOGLE_CLIENT_SECRET": "test-csec",
+                    "OAUTH_REDIRECT_BASE_URL": "https://public.example.com",
+                },
+            ):
+                app = create_app(
+                    profile_path=PROFILE_PATH,
+                    outputs_dir=Path(directory) / "outputs",
+                )
+                client = TestClient(app, base_url="http://internal:8000")
+                status = client.get("/api/auth/providers").json()
+                self.assertEqual(status["base_url_source"], "env")
+                self.assertEqual(
+                    status["redirect_uri"],
+                    "https://public.example.com/api/auth/callback/google",
+                )
+                login = client.get(
+                    "/api/auth/login/google", follow_redirects=False
+                )
+            self.assertIn(login.status_code, (302, 307))
+            query = parse_qs(urlparse(login.headers["location"]).query)
+            self.assertEqual(
+                query["redirect_uri"],
+                ["https://public.example.com/api/auth/callback/google"],
+            )
+
     def test_callback_creates_user_and_session(self):
         import os
 

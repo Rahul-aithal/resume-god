@@ -119,11 +119,52 @@ def require_user(request: Request) -> dict[str, Any]:
     return user
 
 
+def _oauth_base_url(request: Request) -> tuple[str, str]:
+    """Public origin for OAuth redirects: (base_url, source).
+
+    OAUTH_REDIRECT_BASE_URL wins when set (for TLS terminators or unusual
+    proxies). Otherwise the request origin is used — correct behind nginx
+    because it forwards the full Host (port included) and uvicorn runs with
+    --proxy-headers in the container.
+    """
+    override = os.environ.get("OAUTH_REDIRECT_BASE_URL", "").strip().rstrip("/")
+    if override:
+        return override, "env"
+    return str(request.base_url).rstrip("/"), "request"
+
+
+def _redirect_uri(request: Request, provider: str) -> str:
+    base, _ = _oauth_base_url(request)
+    return f"{base}/api/auth/callback/{provider}"
+
+
+@router.get("/providers")
+async def auth_providers(request: Request) -> dict[str, Any]:
+    """Report OAuth setup state and the exact redirect URI to register.
+
+    The login page shows this URI so a redirect_uri_mismatch becomes a
+    copy-paste fix instead of a guessing game. It is computed by the same
+    helper the login route uses, so the two can never drift apart.
+    """
+    base, source = _oauth_base_url(request)
+    configured = bool(
+        os.environ.get("GOOGLE_CLIENT_ID")
+        and os.environ.get("GOOGLE_CLIENT_SECRET")
+    )
+    return {
+        "google": {
+            "configured": configured,
+            "login_path": "/api/auth/login/google",
+        },
+        "redirect_uri": f"{base}/api/auth/callback/google",
+        "base_url_source": source,
+    }
+
+
 @router.get("/login/{provider}")
 async def login(request: Request, provider: str):
     client = _client(request, provider)
-    redirect_uri = str(request.url_for("auth_callback", provider=provider))
-    return await client.authorize_redirect(request, redirect_uri)
+    return await client.authorize_redirect(request, _redirect_uri(request, provider))
 
 
 @router.get("/callback/{provider}", name="auth_callback")

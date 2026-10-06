@@ -128,6 +128,18 @@ export interface MeInfo {
   display_name: string;
 }
 
+/** OAuth setup state reported by GET /api/auth/providers. */
+export interface AuthProviderInfo {
+  configured: boolean;
+  login_path: string;
+}
+
+export interface AuthProvidersInfo {
+  google: AuthProviderInfo;
+  redirect_uri: string;
+  base_url_source: "env" | "request";
+}
+
 /** B4 tracker + settings shapes. */
 
 export const ROLE_STATUSES = [
