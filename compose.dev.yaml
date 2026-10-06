@@ -1,5 +1,10 @@
 # Local development overrides: live reload, host ports, debug access.
 # Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
+#
+# URLs in dev mode (the SPA is the only UI):
+#   http://localhost:5173  React SPA (vite HMR, proxies /api + /files)
+#   http://localhost:8000  JSON API only (no UI — / is a JSON pointer)
+#   localhost:5432         postgres
 services:
   db:
     ports:
@@ -19,8 +24,15 @@ services:
     command: uv run python -m resume_god.cli web --host 0.0.0.0 --port 8000
 
   web:
+    # Dev image with bun; the prod image (nginx) cannot run vite.
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web.dev
     ports:
       - "5173:5173"
+    environment:
+      # Vite proxies /api and /files to the API container.
+      VITE_API_PROXY: http://api:8000
     volumes:
       - .:/repo
       - /repo/node_modules

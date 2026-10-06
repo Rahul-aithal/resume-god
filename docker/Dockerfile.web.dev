@@ -1,0 +1,9 @@
+# Dev-only image for compose.dev.yaml: bun + bind-mounted source.
+# Deps install at container start (compose.dev command), so HMR sees
+# live edits. The prod image (Dockerfile.web) builds and serves the
+# compiled SPA with nginx instead.
+FROM oven/bun:1
+
+WORKDIR /repo
+
+EXPOSE 5173
