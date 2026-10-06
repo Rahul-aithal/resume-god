@@ -221,9 +221,17 @@ export default function NewJobPage() {
             />
           </label>
           {tailor.isError && (
-            <p role="alert" className="text-sm text-rose-600">
-              {String(tailor.error)}
-            </p>
+            <div
+              role="alert"
+              className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+            >
+              <p className="font-semibold">Could not generate the plan</p>
+              <p className="mt-1">
+                {tailor.error instanceof Error
+                  ? tailor.error.message
+                  : String(tailor.error)}
+              </p>
+            </div>
           )}
           <button
             type="submit"

@@ -381,8 +381,15 @@ def build_tailoring_plan(
         )
     else:
         parsed = parsed_job_description
-        if parsed.get("role_title", "").strip() != target_title:
-            raise ValueError("Parsed job description does not match target title")
+        parsed_title = str(parsed.get("role_title", "")).strip()
+        if parsed_title != target_title:
+            raise ValueError(
+                "Target title does not match the job description: you requested "
+                f"'{target_title}', but the job description reads as "
+                f"'{parsed_title or 'an unknown role'}'. Leave Target title empty "
+                "to use the job's own title, or paste the description for the "
+                "role you named."
+            )
     skills = {skill["id"]: skill for skill in profile["skills"]}
     parents = {
         node["id"]: node

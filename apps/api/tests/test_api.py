@@ -94,6 +94,33 @@ class JsonApiTests(unittest.TestCase):
             response = client.post("/api/tailor", json={"jd_text": ""})
             self.assertEqual(response.status_code, 422)
 
+    def test_tailor_title_mismatch_returns_clean_422(self):
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            client = make_client(directory)
+            with mock.patch(
+                "resume_god.api.jobs.parse_job_description",
+                return_value={
+                    "role_title": "Data Scientist",
+                    "provider": "deterministic",
+                },
+            ):
+                response = client.post(
+                    "/api/tailor",
+                    json={
+                        "jd_text": "We need Python and FastAPI engineers. " * 10,
+                        "target_title": "Platform Engineer",
+                        "provider": "deterministic",
+                        "max_achievements": 5,
+                    },
+                )
+            self.assertEqual(response.status_code, 422, response.text)
+            detail = response.json()["detail"]
+            self.assertIn("Platform Engineer", detail)
+            self.assertIn("Data Scientist", detail)
+            self.assertIn("Leave Target title empty", detail)
+
     def test_profiles_import_and_list(self):
         with tempfile.TemporaryDirectory() as directory:
             import os

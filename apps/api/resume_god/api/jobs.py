@@ -267,13 +267,18 @@ def _tailor_core(
     if chain_error and not parsed.get("provider_fallback_error"):
         parsed["provider_fallback_error"] = chain_error
 
-    plan = build_tailoring_plan(
-        profile,
-        jd_text,
-        target_title=target_title or parsed["role_title"],
-        max_achievements=max_achievements,
-        parsed_job_description=parsed,
-    )
+    try:
+        plan = build_tailoring_plan(
+            profile,
+            jd_text,
+            target_title=target_title or parsed["role_title"],
+            max_achievements=max_achievements,
+            parsed_job_description=parsed,
+        )
+    except ValueError as error:
+        # Validation problems (e.g. target title vs JD title mismatch) are
+        # client-fixable inputs, not server crashes.
+        raise HTTPException(status_code=422, detail=str(error))
     select_providers, select_req, select_req_error = resolve_provider_list(
         provider_choice, order=order
     )
