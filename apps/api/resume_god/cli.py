@@ -669,7 +669,6 @@ def _role_main(argv: list[str]) -> int:
 
 def _web_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="resume-god web")
-    parser.add_argument("--db", type=Path, default=None)
     parser.add_argument("--profile", type=Path, default=None)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
@@ -701,7 +700,6 @@ def _web_main(argv: list[str]) -> int:
     from .web import create_app
 
     app = create_app(
-        db_path=args.db or default_db_path(),
         profile_path=args.profile or default_profile_path(),
         outputs_dir=args.outputs,
     )

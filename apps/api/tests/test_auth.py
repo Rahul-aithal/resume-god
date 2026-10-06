@@ -15,7 +15,6 @@ PROFILE_PATH = ROOT / "master_profile.yaml"
 def make_client(directory: str) -> TestClient:
     return TestClient(
         create_app(
-            db_path=Path(directory) / "test.db",
             profile_path=PROFILE_PATH,
             outputs_dir=Path(directory) / "outputs",
         )
@@ -66,7 +65,6 @@ class AuthTests(unittest.TestCase):
                 },
             ):
                 app = create_app(
-                    db_path=Path(directory) / "test.db",
                     profile_path=PROFILE_PATH,
                     outputs_dir=Path(directory) / "outputs",
                 )

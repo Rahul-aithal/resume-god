@@ -22,12 +22,17 @@ class TailorRequest(BaseModel):
     max_achievements: int = Field(default=10, ge=1, le=50)
     summary: str | None = None
     font: str | None = None
+    company_id: int | None = None
+    company_name: str | None = None
+    job_url: str | None = None
+    role_status: str = "applied"
 
 
 class TailorResponse(BaseModel):
     plan: dict[str, Any]
     skill_diff: dict[str, Any]
     providers: dict[str, Any]
+    role_id: int | None = None
 
 
 class ReviewEdits(BaseModel):
@@ -55,3 +60,36 @@ class RenderRequest(BaseModel):
 
 class ProfileImportRequest(BaseModel):
     profile_yaml: str = Field(min_length=1)
+
+
+class CompanyCreate(BaseModel):
+    name: str = Field(min_length=1)
+    website: str | None = None
+    location: str | None = None
+    about: str | None = None
+    notes: str | None = None
+
+
+class RoleCreate(BaseModel):
+    company_id: int
+    target_title: str = Field(min_length=1)
+    status: str = "applied"
+    job_url: str | None = None
+    salary: str | None = None
+    location: str | None = None
+    notes: str | None = None
+
+
+class RoleUpdate(BaseModel):
+    status: str | None = None
+    job_url: str | None = None
+    salary: str | None = None
+    location: str | None = None
+    notes: str | None = None
+
+
+class SettingsUpdate(BaseModel):
+    llm_order: str | None = None
+    gemini_model: str | None = None
+    glm_model: str | None = None
+    default_font: str | None = None

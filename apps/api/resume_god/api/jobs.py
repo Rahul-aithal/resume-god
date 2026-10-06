@@ -29,10 +29,14 @@ from ..resume_data import (
 from ..tailor import build_tailoring_plan, load_profile
 from ..typst import write_resume_data_pdf
 from .schemas import (
+    CompanyCreate,
     ProfileImportRequest,
     RenderRequest,
     ReviewRequest,
     ReviewResponse,
+    RoleCreate,
+    RoleUpdate,
+    SettingsUpdate,
     TailorRequest,
     TailorResponse,
 )
@@ -49,6 +53,8 @@ DEFAULT_SETTINGS = {
     "glm_model": "glm-4.6",
     "default_font": "Calibri",
 }
+
+ROLE_STATUSES = ("wishlist", "applied", "oa", "interview", "offer", "rejected")
 
 
 def _db_user(session, claims: dict[str, Any]):
@@ -104,7 +110,8 @@ def _request_profile(user: dict[str, Any]) -> dict[str, Any]:
 
 
 def _persist_artifact(
-    user: dict[str, Any], kind: str, filename: str, content: bytes
+    user: dict[str, Any], kind: str, filename: str, content: bytes,
+    role_id: int | None = None,
 ) -> str:
     """Store a generated file and registry row; returns the relative path.
 
@@ -123,12 +130,99 @@ def _persist_artifact(
         with make_session_factory()() as session:
             db_user = _db_user(session, user)
             session.add(
-                Artifact(user_id=db_user.id, kind=kind, path=str(path))
+                Artifact(user_id=db_user.id, kind=kind, path=str(path), role_id=role_id)
             )
             session.commit()
     except Exception:
         pass
     return str(path)
+
+
+def _link_role(
+    user: dict[str, Any],
+    body: TailorRequest,
+    target_title: str,
+    plan_path: str,
+    *,
+    append_history: bool = True,
+) -> int | None:
+    """Attach the tailored run to a company role, creating both as needed.
+
+    Best-effort: returns None when the app DB is unavailable so a fresh
+    checkout can still tailor without a tracker. Call once with
+    append_history=True to create the role and history row, then again
+    with False to attach the persisted plan path.
+    """
+    try:
+        from ..db import Application, Company, Role, make_session_factory
+
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            company = None
+            if body.company_id is not None:
+                company = (
+                    session.query(Company)
+                    .filter_by(user_id=db_user.id, id=body.company_id)
+                    .one_or_none()
+                )
+                if company is None:
+                    raise HTTPException(
+                        status_code=404, detail=f"Company {body.company_id} not found"
+                    )
+            else:
+                name = (body.company_name or "").strip()
+                if name:
+                    company = (
+                        session.query(Company)
+                        .filter_by(user_id=db_user.id, name=name)
+                        .one_or_none()
+                    )
+                    if company is None:
+                        company = Company(user_id=db_user.id, name=name)
+                        session.add(company)
+                        session.flush()
+            if company is None:
+                return None
+            role = (
+                session.query(Role)
+                .filter_by(user_id=db_user.id, company_id=company.id, target_title=target_title)
+                .one_or_none()
+            )
+            if role is None:
+                role = Role(
+                    user_id=db_user.id,
+                    company_id=company.id,
+                    target_title=target_title,
+                    status=body.role_status,
+                    job_url=body.job_url or "",
+                )
+                session.add(role)
+                session.flush()
+            if append_history:
+                session.add(
+                    Application(
+                        user_id=db_user.id,
+                        role_id=role.id,
+                        status=role.status,
+                        job_url=body.job_url or role.job_url,
+                        resume_pdf=plan_path,
+                    )
+                )
+            elif plan_path:
+                latest = (
+                    session.query(Application)
+                    .filter_by(role_id=role.id)
+                    .order_by(Application.id.desc())
+                    .first()
+                )
+                if latest is not None:
+                    latest.resume_pdf = plan_path
+            session.commit()
+            return role.id
+    except HTTPException:
+        raise
+    except Exception:
+        return None
 
 
 def get_profile_dict() -> dict[str, Any]:
@@ -253,15 +347,66 @@ def health() -> dict[str, str]:
 
 
 @router.get("/providers")
-def providers() -> dict[str, Any]:
+def providers(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    settings = _user_settings(user)
+    order = [item.strip() for item in settings["llm_order"].split(",") if item.strip()]
     return {
-        "order": ["gemini", "glm"],
+        "order": order or ["gemini", "glm"],
         "auto": active_provider_label("auto"),
         "models": {
-            "gemini": "gemini-3-flash-preview",
-            "glm": "glm-4.6",
+            "gemini": settings["gemini_model"],
+            "glm": settings["glm_model"],
         },
+        "default_font": settings["default_font"],
     }
+
+
+@router.get("/settings")
+def get_settings(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    return _user_settings(user)
+
+
+@router.put("/settings")
+def update_settings(
+    body: SettingsUpdate, user: dict[str, Any] = Depends(require_user)
+) -> dict[str, Any]:
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from ..db import UserSettings, make_session_factory
+
+    if body.llm_order is not None:
+        cleaned = [item.strip().lower() for item in body.llm_order.split(",") if item.strip()]
+        invalid = [item for item in cleaned if item not in ("gemini", "glm")]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown providers in llm_order: {', '.join(invalid)} (use gemini/glm)",
+            )
+        if not cleaned:
+            raise HTTPException(status_code=400, detail="llm_order cannot be empty")
+        body.llm_order = ",".join(cleaned)
+    try:
+        with make_session_factory()() as session:
+            db_user = _db_user(session, user)
+            row = (
+                session.query(UserSettings)
+                .filter_by(user_id=db_user.id)
+                .one_or_none()
+            )
+            if row is None:
+                row = UserSettings(user_id=db_user.id)
+                session.add(row)
+            for field in ("llm_order", "gemini_model", "glm_model", "default_font"):
+                value = getattr(body, field)
+                if value is not None:
+                    setattr(row, field, value)
+            session.commit()
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"App database unavailable (run 'resume-god db migrate'): {error}",
+        )
+    return _user_settings(user)
 
 
 @router.post("/tailor", response_model=TailorResponse)
@@ -270,6 +415,11 @@ def tailor(
 ) -> dict[str, Any]:
     import json as _json
 
+    if body.role_status not in ROLE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown role_status: {body.role_status}. Use one of {', '.join(ROLE_STATUSES)}",
+        )
     profile = _request_profile(user)
     settings = _user_settings(user)
     order = [item.strip() for item in settings["llm_order"].split(",") if item.strip()]
@@ -283,6 +433,8 @@ def tailor(
         font=body.font or settings["default_font"],
         order=order,
     )
+    target_title = body.target_title or str(plan.get("target_title") or "Role")
+    role_id = _link_role(user, body, target_title, "")
     path = _persist_artifact(
         user,
         "plan",
@@ -292,11 +444,15 @@ def tailor(
             ensure_ascii=False,
             indent=2,
         ).encode("utf-8"),
+        role_id=role_id,
     )
+    if role_id is not None:
+        _link_role(user, body, target_title, path, append_history=False)
     return {
         "plan": plan,
         "skill_diff": diff,
         "providers": {**providers, "artifact": path},
+        "role_id": role_id,
     }
 
 

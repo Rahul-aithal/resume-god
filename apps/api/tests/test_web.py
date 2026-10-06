@@ -14,81 +14,52 @@ PROFILE_PATH = ROOT / "master_profile.yaml"
 def make_client(directory: str) -> TestClient:
     return TestClient(
         create_app(
-            db_path=Path(directory) / "test.db",
             profile_path=PROFILE_PATH,
             outputs_dir=Path(directory) / "outputs",
         )
     )
 
 
-class WebHardeningTests(unittest.TestCase):
-    def test_dashboard_and_company_roundtrip(self):
-        with tempfile.TemporaryDirectory() as directory:
-            client = make_client(directory)
-            self.assertEqual(client.get("/").status_code, 200)
-            response = client.post(
-                "/companies/add",
-                data={"name": "Acme", "website": "", "location": "", "about": ""},
-            )
-            self.assertIn(response.status_code, (200, 303))
-            page = client.get("/companies/Acme")
-            self.assertEqual(page.status_code, 200)
-            self.assertIn("Acme", page.text)
+class LegacyUiRetiredTests(unittest.TestCase):
+    """The React SPA is the only UI; server-rendered pages are gone."""
 
-    def test_tailor_validates_input_and_audit_failures(self):
+    def test_root_is_a_json_pointer(self):
         with tempfile.TemporaryDirectory() as directory:
             client = make_client(directory)
-            bad = client.post(
-                "/tailor",
-                data={"company": "", "target_title": "", "jd_text": ""},
-            )
-            self.assertEqual(bad.status_code, 400)
-            bad_number = client.post(
-                "/tailor",
-                data={
-                    "company": "Acme",
-                    "target_title": "Engineer",
-                    "jd_text": "Python role",
-                    "max_achievements": "not-a-number",
-                },
-            )
-            self.assertEqual(bad_number.status_code, 400)
+            response = client.get("/")
+            self.assertEqual(response.status_code, 200)
+            body = response.json()
+            self.assertEqual(body["name"], "resume-god")
+            self.assertIn("/api", body["api"])
 
-    def test_tailor_writes_unique_dirs_and_records_role(self):
+    def test_legacy_html_routes_are_gone(self):
         with tempfile.TemporaryDirectory() as directory:
             client = make_client(directory)
-            jd = "We need Python and FastAPI engineers. " * 10
-            first = client.post(
-                "/tailor",
-                data={
-                    "company": "Acme",
-                    "target_title": "Engineer",
-                    "jd_text": jd,
-                    "provider": "deterministic",
-                    "max_achievements": "5",
-                },
-            )
-            self.assertEqual(first.status_code, 200)
-            second = client.post(
-                "/tailor",
-                data={
-                    "company": "Acme",
-                    "target_title": "Engineer",
-                    "jd_text": jd + "Extra sentence about Docker. ",
-                    "provider": "deterministic",
-                    "max_achievements": "5",
-                },
-            )
-            self.assertEqual(second.status_code, 200)
-            out_dirs = sorted(
-                path.name
-                for path in (Path(directory) / "outputs").iterdir()
-                if path.is_dir()
-            )
-            self.assertEqual(len(out_dirs), 2)
-            roles = client.get("/roles")
-            self.assertEqual(roles.status_code, 200)
-            self.assertIn("Acme", roles.text)
+            for path in ("/companies", "/companies/Acme", "/roles", "/new"):
+                self.assertEqual(client.get(path).status_code, 404, path)
+            for path in ("/companies/add", "/tailor"):
+                self.assertEqual(client.post(path, data={}).status_code, 404, path)
+
+    def test_api_and_files_still_served(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = make_client(directory)
+            self.assertEqual(client.get("/api/health").json(), {"status": "ok"})
+            # Data endpoints stay login-gated even without a session.
+            self.assertEqual(client.get("/api/providers").status_code, 401)
+            (Path(directory) / "outputs" / "hello.txt").write_text("hi")
+            served = client.get("/files/hello.txt")
+            self.assertEqual(served.status_code, 200)
+            self.assertEqual(served.text, "hi")
+
+    def test_openapi_documents_only_json_routes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            client = make_client(directory)
+            paths = client.get("/openapi.json").json()["paths"]
+            self.assertIn("/api/tailor", paths)
+            self.assertIn("/api/companies", paths)
+            self.assertIn("/api/auth/login/{provider}", paths)
+            self.assertNotIn("/tailor", paths)
+            self.assertNotIn("/companies/add", paths)
 
 
 if __name__ == "__main__":
