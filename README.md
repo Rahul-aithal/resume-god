@@ -44,7 +44,8 @@ Python commands below run with `apps/api` as the working directory
 (e.g. `cd apps/api && uv run ...`). The installed `resume-god` global
 command works from anywhere.
 
-Run the full stack (web UI at http://localhost:8080):
+Run the full stack (web UI at http://localhost:8080 — see
+[Web UI](#web-ui-react-spa) for dev-mode URLs):
 
 ```bash
 docker compose up --build          # prod-like: nginx SPA + api + postgres
@@ -220,18 +221,58 @@ Every `tailor` report now ends with a skill-diff section:
 
 so you can see “they expect all these, I have exposure in only these”.
 
-## Web UI
+## Web UI (React SPA)
 
-Local FastAPI UI (server-rendered tracker pages plus the `/api` JSON backend;
-the React SPA in `apps/web/` is scaffolded and served by the docker stack):
+The SPA in `apps/web/` is the only UI — the old server-rendered Python
+pages are retired (`/`, `/companies`, `/roles`, `/new` on the API now
+return JSON/404, not HTML).
+
+Production-like stack (SPA served by nginx at http://localhost:8080):
 
 ```bash
-resume-god web --port 8000
+docker compose up --build
 ```
 
-Open `http://127.0.0.1:8000`: dashboard with company/role counts, per-company
-pages, `/new` paste-a-JD form that generates the Typst PDF + skill diff and
-records the role, and `/files/...` links to each generated PDF/`.typ` source.
+Dev stack (SPA at http://localhost:5173 with live reload; it proxies
+`/api` + `/files` to the API container — :8000 serves JSON only, never
+open it as the UI):
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --build
+```
+
+Host-only dev (API + vite on your machine):
+
+```bash
+cd apps/api && uv run python -m resume_god.cli web   # :8000
+cd apps/web  && bun run dev                          # :5173, proxies /api
+```
+
+Screens: dashboard (pipeline counts), companies + per-company roles with
+status editing and history, tailor → review (side-by-side source vs AI
+wording, skill diff, PDF preview/download), per-user settings, profile
+version import. Everything requires Google login.
+
+## Google login (brief reference)
+
+Set in `apps/api/.env` (see `.env.example` for the full annotated block):
+
+```text
+GOOGLE_CLIENT_ID=...      # Google Cloud Console → Credentials → OAuth client (Web)
+GOOGLE_CLIENT_SECRET=...
+SESSION_SECRET=...        # openssl rand -hex 32 — else logins die on restart
+```
+
+Register the callback URI matching how you browse:
+
+| Mode | Redirect URI |
+|---|---|
+| prod docker (:8080) | `http://localhost:8080/api/auth/callback/google` |
+| host dev (:8000) | `http://localhost:8000/api/auth/callback/google` |
+| docker dev (:5173) | `http://localhost:5173/api/auth/callback/google` |
+
+Without credentials the login button surfaces the setup hint (HTTP 503)
+instead of crashing.
 
 ## JSON API (M1)
 
@@ -249,7 +290,7 @@ curl -s -X POST localhost:8000/api/tailor \
 `POST /api/review` takes a plan plus `rewritten_text` edits and returns the
 revalidated plan, rejected edits, and `resume-data`; `POST /api/render`
 returns the PDF bytes. Validation failures are `400` with reasons, never
-invented data. `/api/*` (except health/providers/auth) requires login
+invented data. `/api/*` (except health/auth) requires login
 (`GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/login/google`);
 tailor output is persisted per user and profiles resolve
 from each user's active DB version (file fallback).
