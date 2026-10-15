@@ -1,0 +1,114 @@
+Company: Abstrabit
+About the job
+
+Company Description
+
+Abstrabit is a Private AI engineering company building AI-powered products and solutions for businesses. We work across the AI stack — from deploying and evaluating private and open-weight models to building production applications, agents, workflows, and integrations on top of them.
+
+Our engineering work is organized across two closely connected layers: the AI layer, focused on models, inference, evaluation, and AI infrastructure; and the application layer, focused on building reliable, scalable software products that use those AI capabilities.
+
+Job Description
+
+The Context
+
+AI models are only useful when they can be turned into reliable products.
+
+That requires strong application engineering — frontend and backend systems, APIs, workflows, integrations, authentication, databases, observability, and production infrastructure that can work reliably with AI inference services.
+
+Our Software Engineering team owns this application layer.
+
+We are looking for engineers who can independently deliver well-defined features, understand the systems around them, and grow into broader ownership over time.
+
+About The Role
+
+As a Software Engineer I (SDE1), you will work primarily on the application layer of our AI products and own scoped features from implementation through delivery.
+
+You will build frontend and backend functionality, APIs, integrations, workflows, and production services that use AI models and inference systems.
+
+You will work with technologies such as TypeScript, Node.js, React, Next.js, databases, APIs, and cloud platforms, while collaborating closely with AI engineers and senior software engineers.
+
+This role is suited for someone who is comfortable taking a defined problem, breaking it down, building the solution, testing it, and taking responsibility for getting it into production.
+
+What You'll Work On
+
+Depending on the project, you may work on:
+
+    Building and owning frontend and backend product features. 
+    Designing and implementing APIs and internal services. 
+    Working with databases, authentication, queues, file storage, and third-party integrations. 
+    Integrating applications with AI models, inference services, RAG systems, and AI agents. 
+    Debugging issues across frontend, backend, APIs, and infrastructure. 
+    Writing tests and improving application reliability. 
+    Participating in technical design discussions for the features you own. 
+    Deploying and monitoring applications on cloud platforms. 
+    Reviewing code and incorporating feedback from senior engineers. 
+    Working with AI engineers to convert model capabilities into usable product features. 
+
+Qualifications
+
+We are looking for engineers who can independently deliver scoped work and have strong software engineering fundamentals.
+
+You should have:
+
+    At least 1 year of hands-on full-stack software development experience, including experience building and shipping web applications across frontend and backend. 
+    Strong programming and problem-solving fundamentals. 
+    Experience building and shipping web applications. 
+    Working knowledge of JavaScript or TypeScript and a modern frontend or backend framework. 
+    Good understanding of APIs, databases, Git, and common web application patterns. 
+    Ability to read an existing codebase and make changes safely. 
+    Ability to debug problems instead of treating symptoms. 
+    Understanding of basic testing and software quality practices. 
+    Ability to communicate clearly about implementation decisions, trade-offs, and blockers. 
+    Experience owning a feature or meaningful part of a project from development through delivery. 
+
+Experience with React, Next.js, Node.js, cloud platforms, AI integrations, or production systems is useful, but we care more about engineering fundamentals than an exact technology match.
+
+Using AI as an Engineer
+
+We use AI tools as part of our engineering workflow, and you are welcome to use them. We do not evaluate engineers based on how much code they can write from memory.
+
+What matters is whether you can understand the code you produce, evaluate alternative approaches, identify incorrect suggestions, test your implementation, debug failures, and take responsibility for the final result.
+
+AI can accelerate your work. It does not replace engineering judgment.
+
+What This Role Is Not
+
+This is not an AI research or model-engineering role.
+
+Your primary responsibility will be the application layer — building the software that turns AI capabilities into reliable products.
+
+You will work closely with the AI engineering team and gain exposure to model inference, RAG, evaluation, and Private AI infrastructure, but you will not be expected to own model training or deployment as your primary responsibility.
+
+Additional Information
+
+Why Join Abstrabit
+
+You will work at the intersection of software engineering and Private AI.
+
+You will:
+
+    Build production software that directly uses modern AI systems. 
+    Work across frontend, backend, APIs, databases, cloud infrastructure, and AI integrations. 
+    Learn how application systems interact with private and open-weight models. 
+    Work closely with AI engineers and experienced software engineers. 
+    Own meaningful product features, not just isolated development tasks. 
+    Receive regular technical feedback and code reviews. 
+    Grow toward larger feature ownership and system-level responsibilities as your engineering ability develops. 
+
+Our Interview Process
+
+Our hiring process evaluates how you build and reason about software, not how closely your resume matches a list of keywords.
+
+Step 1: Application Screening - We review your experience, projects, and evidence that you have built and shipped meaningful software.
+
+Step 2: Engineering Assessment - You will complete a practical engineering exercise based on the kind of work you may encounter at Abstrabit.
+
+We care about implementation quality, how you handle edge cases, how you validate your solution, and whether you can make sensible engineering decisions.
+
+Step 3: Technical Discussion - You will discuss your solution with our engineering team.
+
+We may ask you to explain your approach, identify problems in the implementation, debug an issue, modify part of the solution, or reason about an alternative design.
+
+The objective is to understand how you think when the problem moves beyond the initial specification.
+
+Step 4: Final Conversation - A discussion about your experience, the role, expectations, growth, and whether Abstrabit is the right environment for you.
