@@ -1,385 +1,127 @@
 # resume-god
 
-Profile-driven resume tooling for Rahul Aithal.
+Profile-driven resume tooling — TypeScript edition.
 
-Resume God turns a reviewed master profile and a job description into:
+Resume God turns your knowledge graph + a job description into:
 
-- a one-page, ATS-friendly Typst PDF resume;
-- a machine-readable tailoring plan;
-- a readable match report with scores, evidence, rewrite decisions, and gaps.
+- a ATS-friendly resume (Typst PDF and/or Word .docx);
+- a machine-readable tailoring plan with audited evidence selection;
+- a readable match report with scores, coverage, and gaps.
 
-Pipeline: JD → graph retrieval (exact + 2-hop expansion + semantic) →
-LLM selects and writes **resume-data JSON** (schema v1) → grounding
-validation → `resume-data.json` → static Typst template (file import, no
-string interpolation) → one-page PDF. Bare `typst compile` on a reviewed
-pair reproduces the identical PDF.
+Pipeline: JD → graph retrieval (exact + 2-hop expansion + inference +
+TF-IDF semantic) → coverage-aware selection → constrained rewriting →
+resume-data → Typst v2 template → PDF. Deterministic end to end: no LLM
+is required; configured providers only *enhance* parsing, bullet
+selection, and rewriting — grounding checks always run.
 
-The core safety rule is unchanged: the system may select and lightly reword
-only facts present in `master_profile.yaml`. It must never invent skills,
-technologies, numbers, employers, or dates.
+The core safety rule: the system may only ever present facts that exist
+in your reviewed knowledge graph. Unknown skills are reported as gaps,
+never promoted into claims.
 
-## Monorepo layout (Bun + Turborepo + Docker)
+## Monorepo layout (Bun + Turborepo)
 
 ```
-apps/api/          Python pipeline: resume_god/, tests/, profile, fixtures
-apps/web/          React + Vite + Tailwind SPA (served by the stack)
-packages/api-client/  Shared typed API shapes for the future JSON API
-docker/            Dockerfiles + nginx config
-compose.yaml       Prod-like stack: web + api + postgres (+ opt-in neo4j)
-compose.dev.yaml   Local overrides: live reload, host ports
+apps/server/         NestJS API (Bun): auth, graph, tailor, render
+apps/web/            React + Vite + Tailwind SPA
+packages/api-client/ Shared typed API shapes
+docker/              Dockerfile.server (bun+typst), Dockerfile.web, nginx.conf
+.agents/skills/      Project agent skills
 ```
 
-JS tooling is Bun-only (no npm). Turbo orchestrates everything:
-
-```bash
-bun install                  # root, once
-bun run dev                  # api + web with live reload (via turbo)
-bun run build                # all packages
-bun run test                 # vitest suites + 75-test Python suite
-bun run lint                 # prettier + python compile check
-bun run typecheck            # tsc + python import smoke
-```
-
-Python commands below run with `apps/api` as the working directory
-(e.g. `cd apps/api && uv run ...`). The installed `resume-god` global
-command works from anywhere.
-
-Run the full stack (web UI at http://localhost:8080 — see
-[Web UI](#web-ui-react-spa) for dev-mode URLs):
-
-```bash
-docker compose up --build          # prod-like: nginx SPA + api + postgres
-docker compose -f compose.yaml -f compose.dev.yaml up --build   # local dev
-```
-
-App env lives in `apps/api/.env` (gitignored; see `.env.example`).
-`PHASE_*.md` docs predate the monorepo move — run their commands from
-`apps/api/`.
-
-## Original phase status
-
-| Original phase | Status | Documentation |
-|---|---|---|
-| Phase 0 — Master profile | Complete | `PHASE_0_REVIEW.md` |
-| Phase 1 — Graph schema and loader | Complete | `PHASE_1_GRAPH_LOADER.md` |
-| Phase 2 — JD parser and normalization | Complete | `PHASE_2_JD_PARSER.md` |
-| Phase 3 — Retrieval, scoring, gaps | Complete | `PHASE_3_RETRIEVAL.md` |
-| Phase 4 — Assembly and constrained rewrite | Complete | `PHASE_4_REWRITE.md` |
-| Phase 5 — Typst render and CLI | Complete | `PHASE_5_RENDER_CLI.md` |
-
-The repository also contains working convenience layers:
-
-- `PHASE_1_TAILORING.md` describes the deterministic selection API.
-- `PHASE_2_RENDERING.md` describes safe Markdown/HTML rendering.
-- `PHASE_3_APPLICATIONS.md` describes manifest-driven application packets.
+One database: Postgres (Drizzle ORM). The knowledge graph — skills,
+experiences, projects, achievements, education, certifications,
+implication edges, contact, soft skills — lives in normalized `kg_*`
+tables. YAML/JSON are import/export formats only, never storage.
 
 ## Quick start
 
-Install the global CLI command once:
-
 ```bash
-git clone https://github.com/Rahul-aithal/resume-god.git
-cd resume-god
-./apps/api/scripts/install-cli.sh
-```
-
-The installer uses `uv tool`, installs the `resume-god` command on PATH, and adds
-the local Typst renderer. After installation, you do not need to enter the
-repository or `.venv`.
-
-Check the installation from anywhere:
-
-```bash
-resume-god doctor
-```
-
-Generate a one-page PDF, match report, and machine-readable plan:
-
-```bash
-resume-god tailor path/to/job.txt \
-  --target-title "Software Developer" \
-  --out outputs/software-developer/resume.pdf
-```
-
-If `--target-title` is omitted, the JD parser derives it from the description.
-
-The command writes:
-
-```text
-outputs/software-developer/resume.pdf
-outputs/software-developer/resume-report.md
-outputs/software-developer/resume-plan.json
-```
-
-Resumes render in Calibri (with automatic fallback when it is not
-installed). Override per run with `--font "Times New Roman"`.
-
-## Review gate: AI generates JSON, you review, JSON goes to Typst
-
-`tailor` writes `resume-plan.json` (graph evidence + LLM selection +
-rewrites). Review it — edit any `rewrites.<id>.rewritten_text`, drop or
-reorder bullets — then render from the reviewed file. Every edit is
-re-validated (unknown ids dropped, unsafe texts fall back to the reviewed
-original) before Typst compiles:
-
-```bash
-resume-god tailor path/to/job.txt \
-  --target-title "Software Developer" \
-  --out outputs/software-developer/resume.pdf
-# ... review outputs/software-developer/resume-plan.json ...
-resume-god render-pdf \
-  --plan outputs/software-developer/resume-plan.json \
-  --out outputs/software-developer/resume-reviewed.pdf \
-  --data-output outputs/software-developer/resume-data.json
-```
-
-`--select-provider auto|glm|gemini|deterministic` controls who picks the
-bullets from graph-ranked evidence (default: LLM when a key exists, else
-deterministic ranking). `--data-output` keeps the validated
-`resume-data.json` that the static template (`apps/api/resume_god/template/resume.typ`)
-imports — recompile it any time with plain `typst compile`.
-
-The equivalent module invocation (from `apps/api/`):
-
-```bash
-uv run python -m resume_god.cli tailor path/to/job.txt \
-  --target-title "Software Developer" \
-  --out outputs/software-developer/resume.pdf
-```
-
-## LLM providers
-
-Both default to `auto`: an LLM is used when a key exists, otherwise the
-offline deterministic path runs — never a crash.
-
-- JD parsing: `--parser-provider auto|glm|gemini|deterministic`
-- Bullet rewriting: `--rewrite-provider auto|glm|gemini|deterministic`
-- Bullet selection: `--select-provider auto|glm|gemini|deterministic`
-
-Set `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) and/or `GLM_API_KEY` (or
-`ZAI_API_KEY`), optionally in a `.env` file. `RESUME_GOD_LLM_ORDER`
-(default `gemini,glm`) controls auto preference, and `GEMINI_MODEL`
-(default `gemini-3-flash-preview`) selects the Gemini model. Every report records what
-was requested vs actually used under `## Providers`, including fallback
-reasons.
-
-Provider output is still normalized through the reviewed alias table
-(`JS→JavaScript`, `TS→TypeScript`, …) and grounding-checked against the
-reviewed profile. Any unsafe rewrite falls back to the original source
-bullet, and any provider/network failure falls back to deterministic.
-
-The skill graph also carries curated framework→foundation edges
-(`SKILL_IMPLIES` in `resume_god/graph.py`: Next.js→React/TypeScript/JS,
-React→JS, NestJS→Node/TS, …). Framework work counts as weaker
-`inferred_covered` evidence for language requirements — always labeled as
-inferred, never as a direct claim.
-
-## Application packets
-
-Build Markdown and HTML packets:
-
-```bash
-resume-god applications \
-  --manifest applications.yaml \
-  --output-dir outputs/applications
-```
-
-Also generate one Typst PDF per application:
-
-```bash
-resume-god applications \
-  --manifest applications.yaml \
-  --output-dir outputs/applications \
-  --pdf
-```
-
-Both `--manifest` and `--profile` are optional. They default to the reviewed
-files in the checkout or to `RESUME_GOD_MANIFEST` and `RESUME_GOD_PROFILE`.
-
-Resumes render with the official Typst template
-`@preview/basic-resume:0.2.9` (`#show: resume.with(...)` + `#work` / `#project`
-/ `#edu` / `#certificates`). First compile downloads the package once; later
-compiles reuse the Typst cache.
-
-## Company tracker (SQLite)
-
-Keep per-company data plus how many roles you applied to and which ones:
-
-```bash
-resume-god company add Goodspace --about "AI hiring products" --location "Noida (Remote)"
-resume-god role add --company Goodspace --title "Software Engineer" --jd-file job.txt
-resume-god role list --company Goodspace
-resume-god role status 1 interview
-resume-god company show Goodspace
-```
-
-DB defaults to `data/companies.db` (override with `--db` or `RESUME_GOD_DB`).
-
-Every `tailor` report now ends with a skill-diff section:
-
-> To join as X they expect N skills; you have evidence for M …
-
-so you can see “they expect all these, I have exposure in only these”.
-
-## Web UI (React SPA)
-
-The SPA in `apps/web/` is the only UI — the old server-rendered Python
-pages are retired (`/`, `/companies`, `/roles`, `/new` on the API now
-return JSON/404, not HTML).
-
-Production-like stack (SPA served by nginx at http://localhost:8080):
-
-```bash
-docker compose up --build
-```
-
-Dev stack (SPA at http://localhost:5173 with live reload; it proxies
-`/api` + `/files` to the API container — :8000 serves JSON only, never
-open it as the UI):
-
-```bash
+bun install
 docker compose -f compose.yaml -f compose.dev.yaml up --build
+# SPA: http://localhost:5173   API: http://localhost:3000
 ```
 
-Host-only dev (API + vite on your machine):
+Or without Docker:
 
 ```bash
-cd apps/api && uv run python -m resume_god.cli web   # :8000
-cd apps/web  && bun run dev                          # :5173, proxies /api
+bun install
+bun run dev      # server (3000) + web (5173) via turbo
 ```
 
-Screens: dashboard (pipeline counts), companies + per-company roles with
-status editing and history, tailor → review (side-by-side source vs AI
-wording, skill diff, PDF preview/download), per-user settings, profile
-version import. Everything requires Google login.
+Google login: set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+(`apps/server/.env`); register the redirect URI
+`http://localhost:5173/api/auth/callback/google`. Without credentials the
+login page explains setup instead of crashing.
 
-## Google login (brief reference)
+## Knowledge graph
 
-Set in `apps/api/.env` (see `.env.example` for the full annotated block):
+- `/graph` — interactive React Flow canvas: click any node to edit,
+  add/delete skills, experiences, projects, achievements, education,
+  certifications, soft skills, and implication edges.
+- Import: paste a profile document (YAML or JSON) — files are transport,
+  never storage.
+- Export: download the full graph as YAML/JSON any time.
+- Review gate: tailoring/rendering requires "Mark reviewed"; edits clear
+  it, keeping unreviewed data out of resumes.
 
-```text
-GOOGLE_CLIENT_ID=...      # Google Cloud Console → Credentials → OAuth client (Web)
-GOOGLE_CLIENT_SECRET=...
-SESSION_SECRET=...        # openssl rand -hex 32 — else logins die on restart
-```
+Auth account is the fallback identity: with no contact row, your Google
+name/email are used.
 
-Register the callback URI matching how you browse:
+## LLM providers (optional)
 
-| Mode | Redirect URI |
-|---|---|
-| prod docker (:8080) | `http://localhost:8080/api/auth/callback/google` |
-| host dev (:8000) | `http://localhost:8000/api/auth/callback/google` |
-| docker dev (:5173) | `http://localhost:5173/api/auth/callback/google` |
+`GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `GLM_API_KEY` (or
+`ZAI_API_KEY`/`ZHIPU_API_KEY`), `OPENAI_API_KEY` — set any of them in
+`apps/server/.env`. `RESUME_GOD_LLM_ORDER` (default `gemini,glm,openai`)
+controls auto preference; every stage reports requested vs used with
+fallback reasons. Deterministic output never crashes without keys.
 
-You do not have to guess: the login page queries `GET /api/auth/providers`
-and displays the **exact** redirect URI the server will send (with a copy
-button). Register that value character for character — including the port.
-If Google shows `redirect_uri_mismatch`, compare its error detail with the
-URI on the login page.
-
-Behind a different proxy or TLS terminator, force the public origin once:
-
-```text
-OAUTH_REDIRECT_BASE_URL=https://resume.example.com
-```
-
-Without credentials the login button surfaces the setup hint (HTTP 503)
-instead of crashing.
-
-## JSON API (M1)
-
-The same UI also serves a JSON API the React SPA drives —
-`tailor → review → render` with plans passed by value:
+## JSON API
 
 ```bash
-curl -s localhost:8000/api/health
-curl -s localhost:8000/api/providers
-curl -s -X POST localhost:8000/api/tailor \
+curl -s localhost:3000/api/health
+curl -s localhost:3000/api/graph            # full projection (auth required)
+curl -s -X POST localhost:3000/api/tailor \
   -H 'Content-Type: application/json' \
-  -d '{"jd_text": "…", "target_title": "Software Engineer", "provider": "auto"}'
-```
-
-`POST /api/review` takes a plan plus `rewritten_text` edits and returns the
-revalidated plan, rejected edits, and `resume-data`; `POST /api/render`
-returns the PDF bytes. Validation failures are `400` with reasons, never
-invented data. `/api/*` (except health/auth) requires login
-(`GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/auth/login/google`);
-tailor output is persisted per user and profiles resolve
-from each user's active DB version (file fallback).
-
-## App database (B1: Postgres, SQLite fallback)
-
-Beyond the legacy tracker DB, the app database holds users, versioned
-profiles, companies/roles/applications, artifacts, and settings:
-
-```bash
-(cd apps/api && uv run python -m resume_god.cli db migrate)   # DATABASE_URL or local SQLite
-resume-god profile import master_profile.yaml                  # new immutable version, becomes active
-resume-god profile list
-```
-
-Every import is a new version; the pipeline can pin any version, and only
-`user_reviewed` profiles render. Migrations live in `apps/api/alembic/`.
-
-## Local Neo4j graph
-
-Start the configured local database:
-
-```bash
-docker compose --profile graph up -d neo4j
-```
-
-Load the reviewed profile (from `apps/api/`):
-
-```bash
-resume-god graph load \
-  --profile master_profile.yaml \
-  --uri bolt://localhost:7687 \
-  --user neo4j \
-  --password resume-god-local
-```
-
-Offline graph and semantic queries work without Neo4j:
-
-```bash
-resume-god graph query \
-  --skill Go \
-  --project project_eventmcp \
-  --search "LLM agent calendar tool" \
-  --limit 5
+  -d '{"jd_text": "...", "max_achievements": 6}'
+curl -s -X POST localhost:3000/api/render   # resume-data → PDF
+curl -s localhost:3000/api/render/docx      # resume.docx download
 ```
 
 ## Tests
 
 ```bash
-bun run test                              # everything (turbo)
-(cd apps/api && uv run python -m unittest discover -s tests -v)
+bun run test        # server (bun test) + web + api-client + turbo
+bun run typecheck   # tsc (TypeScript 7) across all packages
+bun run lint        # prettier
 ```
 
-The Neo4j load test is optional and runs when `RESUME_GOD_NEO4J_URI` and
-`RESUME_GOD_NEO4J_PASSWORD` are set. Typst PDF tests run when Typst is
-available through `TYPST_BIN`, `.venv/bin/typst`, or `PATH`.
+## Backups
 
-## Global CLI maintenance
-
-Update after pulling changes:
+Postgres holds everything (the graph is normalized tables, no files to
+back up besides `outputs/`). Dump it any time:
 
 ```bash
-cd /path/to/resume-god
-git pull
-./apps/api/scripts/install-cli.sh
+./scripts/backup-db.sh            # → backups/resume-god-<timestamp>.dump
 ```
 
-Remove the global command:
+Restore with the command printed by the script. Take a backup before any
+major upgrade or migration.
 
-```bash
-/path/to/resume-god/apps/api/scripts/uninstall-cli.sh
+## Going live (TLS + origins)
+
+For anything beyond localhost, terminate TLS in front of the stack
+(Caddy, nginx, Cloudflare Tunnel — any of them) and point it at `:8080`.
+Then set, in production env (never in the repo):
+
+```text
+BETTER_AUTH_URL=https://resume.example.com
+AUTH_TRUSTED_ORIGINS=https://resume.example.com
+SESSION_SECRET=<openssl rand -base64 32>   # or BETTER_AUTH_SECRET
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 ```
 
-Environment overrides:
-
-```bash
-export RESUME_GOD_PROFILE=/path/to/master_profile.yaml
-export RESUME_GOD_MANIFEST=/path/to/applications.yaml
-export TYPST_BIN=/path/to/typst
-```
+Register `https://resume.example.com/api/auth/callback/google` in Google
+Cloud Console → Credentials → your OAuth client. The login page always
+shows the exact redirect URI the server will send — copy it from there
+instead of guessing.

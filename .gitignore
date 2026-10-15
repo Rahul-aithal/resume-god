@@ -21,6 +21,8 @@ output/
 *.egg-info/
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 
 # Scratch job descriptions used for local testing.
 job.txt
