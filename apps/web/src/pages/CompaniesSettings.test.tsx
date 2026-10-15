@@ -105,6 +105,7 @@ describe("SettingsPage", () => {
       llm_order: "gemini,glm",
       gemini_model: "gemini-3-flash-preview",
       glm_model: "glm-4.6",
+      openai_model: "gpt-4.1",
       default_font: "Calibri",
     });
     vi.mocked(api.fetchProviders).mockResolvedValue({
@@ -117,6 +118,7 @@ describe("SettingsPage", () => {
       llm_order: "glm,gemini",
       gemini_model: "gemini-3-flash-preview",
       glm_model: "glm-4.6",
+      openai_model: "gpt-4.1",
       default_font: "Times New Roman",
     });
   });

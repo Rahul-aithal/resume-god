@@ -59,7 +59,7 @@ describe("App", () => {
 
   it("shows the signed-in header and dashboard for logged-in users", async () => {
     vi.mocked(api.fetchMe).mockResolvedValue({
-      id: 1,
+      id: "user-1",
       email: "tester@example.com",
       display_name: "Tester",
     });

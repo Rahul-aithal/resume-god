@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [llmOrder, setLlmOrder] = useState("");
   const [geminiModel, setGeminiModel] = useState("");
   const [glmModel, setGlmModel] = useState("");
+  const [openaiModel, setOpenaiModel] = useState("");
   const [defaultFont, setDefaultFont] = useState("");
   const [saved, setSaved] = useState(false);
 
@@ -21,6 +22,7 @@ export default function SettingsPage() {
       setLlmOrder(settings.data.llm_order);
       setGeminiModel(settings.data.gemini_model);
       setGlmModel(settings.data.glm_model);
+      setOpenaiModel(settings.data.openai_model);
       setDefaultFont(settings.data.default_font);
     }
   }, [settings.data]);
@@ -31,6 +33,7 @@ export default function SettingsPage() {
         llm_order: llmOrder,
         gemini_model: geminiModel,
         glm_model: glmModel,
+        openai_model: openaiModel,
         default_font: defaultFont,
       }),
     onSuccess: () => {
@@ -54,6 +57,7 @@ export default function SettingsPage() {
     settings.data.llm_order !== llmOrder ||
     settings.data.gemini_model !== geminiModel ||
     settings.data.glm_model !== glmModel ||
+    settings.data.openai_model !== openaiModel ||
     settings.data.default_font !== defaultFont;
 
   return (
@@ -74,12 +78,12 @@ export default function SettingsPage() {
       >
         <div className="space-y-4">
           <label className="block text-sm font-medium">
-            LLM order (comma-separated: gemini, glm)
+            LLM order (comma-separated: gemini, glm, openai)
             <input
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               value={llmOrder}
               onChange={(event) => setLlmOrder(event.target.value)}
-              placeholder="gemini,glm"
+              placeholder="gemini,glm,openai"
             />
             <span className="mt-1 block text-xs font-normal text-slate-500">
               "auto" tries these in order, skipping providers without keys.
@@ -99,6 +103,15 @@ export default function SettingsPage() {
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
               value={glmModel}
               onChange={(event) => setGlmModel(event.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            OpenAI model
+            <input
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              value={openaiModel}
+              onChange={(event) => setOpenaiModel(event.target.value)}
+              placeholder="gpt-4.1"
             />
           </label>
           <label className="block text-sm font-medium">

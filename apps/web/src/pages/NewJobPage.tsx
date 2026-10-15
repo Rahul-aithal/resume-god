@@ -176,6 +176,7 @@ export default function NewJobPage() {
                 onChange={(event) => setProvider(event.target.value)}
               >
                 <option value="auto">Auto (LLM if key, else offline)</option>
+                <option value="openai">OpenAI (GPT)</option>
                 <option value="gemini">Gemini</option>
                 <option value="glm">GLM</option>
                 <option value="deterministic">Offline only</option>

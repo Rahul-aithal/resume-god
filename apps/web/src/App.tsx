@@ -3,9 +3,9 @@ import { AuthProvider, RequireAuth, useAuth, useLogout } from "./lib/auth";
 import CompaniesPage from "./pages/CompaniesPage";
 import CompanyDetailPage from "./pages/CompanyDetailPage";
 import DashboardPage from "./pages/DashboardPage";
+import GraphPage from "./pages/GraphPage";
 import LoginPage from "./pages/LoginPage";
 import NewJobPage from "./pages/NewJobPage";
-import ProfilesPage from "./pages/ProfilesPage";
 import ReviewPage from "./pages/ReviewPage";
 import RoleDetailPage from "./pages/RoleDetailPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -46,8 +46,8 @@ function Header() {
           <NavLink to="/companies" className={navLinkClass}>
             Companies
           </NavLink>
-          <NavLink to="/profiles" className={navLinkClass}>
-            Profiles
+          <NavLink to="/graph" className={navLinkClass}>
+            Knowledge graph
           </NavLink>
           <NavLink to="/settings" className={navLinkClass}>
             Settings
@@ -132,10 +132,10 @@ export default function App() {
               }
             />
             <Route
-              path="/profiles"
+              path="/graph"
               element={
                 <RequireAuth>
-                  <ProfilesPage />
+                  <GraphPage />
                 </RequireAuth>
               }
             />

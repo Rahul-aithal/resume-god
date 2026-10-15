@@ -11,7 +11,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { fetchMe, logout as apiLogout } from "./api";
 
 interface AuthValue {
-  userId: number | null;
+  userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }

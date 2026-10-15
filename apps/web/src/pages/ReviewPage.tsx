@@ -57,6 +57,15 @@ export default function ReviewPage() {
 
   const rewrites = rewritesOf(plan);
   const diff = diffOf(plan);
+  const stages = (session?.providers ?? {}) as Record<
+    string,
+    { requested?: string; used?: string; fallback_error?: string | null }
+  >;
+  const stageNames: Array<[string, string]> = [
+    ["parsing", "Parsing"],
+    ["selection", "Selection"],
+    ["rewriting", "Rewriting"],
+  ];
 
   async function submitReview() {
     setBusy(true);
@@ -113,13 +122,35 @@ export default function ReviewPage() {
         <div>
           <h1 className="text-2xl font-bold">Review the AI plan</h1>
           {session?.providers && (
-            <p className="mt-1 text-sm text-slate-500">
-              Parsing: {(session.providers.parsing as { used?: string })?.used}{" "}
-              · Selection:{" "}
-              {(session.providers.selection as { used?: string })?.used} ·
-              Rewriting:{" "}
-              {(session.providers.rewriting as { used?: string })?.used}
-            </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {stageNames.map(([key, label]) => {
+                const stage = stages[key];
+                if (!stage) return null;
+                const drifted =
+                  stage.requested &&
+                  stage.used &&
+                  stage.requested !== stage.used;
+                return (
+                  <span
+                    key={key}
+                    title={
+                      stage.fallback_error
+                        ? `Fallback: ${stage.fallback_error}`
+                        : undefined
+                    }
+                    className={`rounded-full px-2 py-0.5 font-medium ${
+                      stage.fallback_error
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {label}: {stage.used ?? "?"}
+                    {drifted ? ` (requested ${stage.requested})` : ""}
+                    {stage.fallback_error ? " ⚠" : ""}
+                  </span>
+                );
+              })}
+            </div>
           )}
         </div>
         {pdfUrl && (
