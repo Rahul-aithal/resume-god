@@ -30,9 +30,10 @@ implementation.
   gate, and settings — including provider reporting. Redesigned on
   2026-11-01: light/dark theme system (no first-paint flash, self-hosted
   Geist variable font), every page a lazy route chunk, nav prefetches
-  chunks on hover, vendor chunks cached separately. Initial JS dropped
-  from ~162 KB to ~101 KB gzipped; the React Flow canvas (~57 KB gz +
-  its CSS) loads only on `/graph`.
+  chunks on hover, vendor chunks cached separately. UI is shadcn on Base
+  UI. Initial JS is ~136 KB gzipped (was ~162 KB); the React Flow canvas
+  (~57 KB gz + its CSS) loads only on `/graph`, and the Select chunk
+  (~39 KB gz) only on pages with a dropdown.
 - **Verification:** `bun run typecheck` clean; 75 server tests and 13
   web tests passing. The `rg-test-pg` container (postgres:16-alpine,
   `docker start rg-test-pg`) serves both purposes on **port 5433**:
@@ -100,7 +101,12 @@ name/email are used.
 
 `GEMINI_API_KEY` (or `GOOGLE_API_KEY`), `GLM_API_KEY` (or
 `ZAI_API_KEY`/`ZHIPU_API_KEY`), `OPENAI_API_KEY` — set any of them in
-`apps/server/.env`. `RESUME_GOD_LLM_ORDER` (default `gemini,glm,openai`)
+`apps/server/.env`. Users can also add their own keys under Settings →
+Your API keys: a user's key takes priority over the server's for their
+runs. Keys are encrypted with AES-256-GCM using a key derived from
+`BETTER_AUTH_SECRET` (or `SESSION_SECRET`) and only the last 4 characters
+are ever returned. Changing that secret makes saved keys unreadable, and
+the page asks users to enter them again. `RESUME_GOD_LLM_ORDER` (default `gemini,glm,openai`)
 controls auto preference; every stage reports requested vs used with
 fallback reasons. Deterministic output never crashes without keys.
 

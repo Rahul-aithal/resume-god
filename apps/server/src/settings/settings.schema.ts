@@ -45,6 +45,28 @@ export const updateSettingsSchema = z.strictObject({
 
 export type UpdateSettingsInput = z.input<typeof updateSettingsSchema>;
 
+export const saveApiKeySchema = z.strictObject({
+  api_key: z
+    .string()
+    .trim()
+    .min(8, { error: "That key looks too short" })
+    .max(512, { error: "That key looks too long" })
+    .regex(/^\S+$/, { error: "API keys can't contain spaces" }),
+});
+
+export type SaveApiKeyInput = z.output<typeof saveApiKeySchema>;
+
+export const apiKeysResponseSchema = z.object({
+  keys: z.array(
+    z.object({
+      provider: z.string(),
+      source: z.enum(["user", "server", "none"]),
+      last4: z.nullable(z.string()),
+      needs_reentry: z.boolean(),
+    }),
+  ),
+});
+
 // ---- responses ----
 
 export const userSettingsResponseSchema = z.object({

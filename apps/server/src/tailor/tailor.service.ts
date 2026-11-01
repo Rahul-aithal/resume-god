@@ -100,6 +100,7 @@ export class TailorService {
     },
   ): Promise<TailorResult> {
     const order = await this.orderFor(userId);
+    const userKeys = await this.settings.userKeys(userId);
     const choice = input.provider ?? "auto";
     const font = firstNonEmptyInput(
       input.font,
@@ -116,7 +117,7 @@ export class TailorService {
     const providers: Record<string, StageInfo> = {};
 
     // ---- 1. parse ----
-    const parseList = this.chain.resolveList(choice, order);
+    const parseList = this.chain.resolveList(choice, order, userKeys);
     const parseResult = await this.chain.attemptEach(
       parseList.providers,
       async (provider: LlmProvider | null) => {
@@ -156,7 +157,7 @@ export class TailorService {
     });
 
     // ---- 3. rewrite (LLM, deterministic fallback) ----
-    const rewriteList = this.chain.resolveList(choice, order);
+    const rewriteList = this.chain.resolveList(choice, order, userKeys);
     const rewriteResult = await this.chain.attemptEach(
       rewriteList.providers,
       async (provider) => {

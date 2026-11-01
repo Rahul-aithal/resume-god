@@ -250,6 +250,14 @@ export interface UserSettings {
   default_font: string;
 }
 
+export interface ApiKeyStatus {
+  provider: string;
+  /** Which key a run would use. A user's own key beats the server's. */
+  source: "user" | "server" | "none";
+  last4: string | null;
+  needs_reentry: boolean;
+}
+
 // ---- Knowledge graph (normalized; files are transport only) ----
 
 export type GraphNodeKind =

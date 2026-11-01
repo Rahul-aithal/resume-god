@@ -398,3 +398,29 @@ export const userSettings = pgTable("user_settings", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+/** Bring-your-own LLM keys. Only ciphertext is stored; see api-key-crypto.ts. */
+export const userApiKeys = pgTable(
+  "user_api_keys",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    ciphertext: text("ciphertext").notNull(),
+    last4: text("last4").notNull(),
+    createdAt: ts("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: ts("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("user_api_keys_user_provider_idx").on(
+      table.userId,
+      table.provider,
+    ),
+  ],
+);

@@ -13,6 +13,9 @@ import {
 
 export type { LlmProvider, ProviderName };
 
+/** A user's own keys, used in place of the server's for that provider. */
+export type UserKeys = Partial<Record<ProviderName, string>>;
+
 export type ProviderChoice =
   "auto" | "deterministic" | ProviderName | (string & {});
 
@@ -64,7 +67,7 @@ export class LlmProviderChainService {
     return filtered.length > 0 ? filtered : ["gemini", "glm", "openai"];
   }
 
-  private hasKey(name: ProviderName): boolean {
+  hasServerKey(name: ProviderName): boolean {
     switch (name) {
       case "gemini":
         return Boolean(this.cfg.geminiKey);
@@ -75,23 +78,27 @@ export class LlmProviderChainService {
     }
   }
 
-  private make(name: ProviderName): LlmProvider {
+  private hasKey(name: ProviderName, userKeys?: UserKeys): boolean {
+    return Boolean(userKeys?.[name]) || this.hasServerKey(name);
+  }
+
+  private make(name: ProviderName, userKeys?: UserKeys): LlmProvider {
     const cfg = this.cfg;
     switch (name) {
       case "glm":
         return GlmProvider.create(this.http, {
-          glmKey: cfg.glmKey,
+          glmKey: userKeys?.glm || cfg.glmKey,
           glmModel: cfg.glmModel,
           glmApiUrl: cfg.glmApiUrl,
         });
       case "gemini":
         return GeminiProvider.create(this.http, {
-          geminiKey: cfg.geminiKey,
+          geminiKey: userKeys?.gemini || cfg.geminiKey,
           geminiModel: cfg.geminiModel,
         });
       case "openai":
         return OpenAiProvider.create(this.http, {
-          openaiKey: cfg.openaiKey,
+          openaiKey: userKeys?.openai || cfg.openaiKey,
           openaiModel: cfg.openaiModel,
           openaiApiUrl: cfg.openaiApiUrl,
         });
@@ -108,6 +115,7 @@ export class LlmProviderChainService {
   resolveList(
     choice: ProviderChoice | null,
     orderOverride?: string[],
+    userKeys?: UserKeys,
   ): {
     providers: LlmProvider[];
     requested: string;
@@ -120,9 +128,9 @@ export class LlmProviderChainService {
     if (choice === "auto") {
       const providers: LlmProvider[] = [];
       for (const candidate of this.defaultOrder(orderOverride)) {
-        if (!this.hasKey(candidate)) continue;
+        if (!this.hasKey(candidate, userKeys)) continue;
         try {
-          providers.push(this.make(candidate));
+          providers.push(this.make(candidate, userKeys));
         } catch {
           continue;
         }
@@ -132,12 +140,12 @@ export class LlmProviderChainService {
     if ((KNOWN_PROVIDERS as string[]).includes(choice)) {
       const name = choice as ProviderName;
       try {
-        const first = this.make(name);
+        const first = this.make(name, userKeys);
         const rest: LlmProvider[] = [];
         for (const candidate of this.defaultOrder(orderOverride)) {
-          if (candidate === name || !this.hasKey(candidate)) continue;
+          if (candidate === name || !this.hasKey(candidate, userKeys)) continue;
           try {
-            rest.push(this.make(candidate));
+            rest.push(this.make(candidate, userKeys));
           } catch {
             continue;
           }
@@ -177,15 +185,19 @@ export class LlmProviderChainService {
   }
 
   /** Human-readable label for what auto resolution would use (no calls). */
-  activeLabel(choice: string | null): string {
+  activeLabel(
+    choice: string | null,
+    userKeys?: UserKeys,
+    orderOverride?: string[],
+  ): string {
     if (choice == null || choice === "deterministic")
       return "deterministic (offline)";
     if ((KNOWN_PROVIDERS as string[]).includes(choice)) {
-      return `${choice} (${this.hasKey(choice as ProviderName) ? "key found" : "NO KEY — will fall back offline"})`;
+      return `${choice} (${this.hasKey(choice as ProviderName, userKeys) ? "key found" : "NO KEY — will fall back offline"})`;
     }
     if (choice === "auto") {
-      for (const candidate of this.defaultOrder()) {
-        if (this.hasKey(candidate)) return `${candidate} (auto)`;
+      for (const candidate of this.defaultOrder(orderOverride)) {
+        if (this.hasKey(candidate, userKeys)) return `${candidate} (auto)`;
       }
       return "deterministic (auto — no keys found)";
     }
