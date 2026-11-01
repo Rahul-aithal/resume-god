@@ -16,6 +16,7 @@ import {
   ExternalLink,
   FilePlus2,
   LayoutGrid,
+  ListChecks,
   LoaderCircle,
   LogOut,
   Maximize2,
@@ -61,6 +62,10 @@ export function DashboardIcon(props: IconProps) {
 
 export function NewJobIcon(props: IconProps) {
   return <FilePlus2 aria-hidden {...props} />;
+}
+
+export function TailoringIcon(props: IconProps) {
+  return <ListChecks aria-hidden {...props} />;
 }
 
 export function ReviewIcon(props: IconProps) {

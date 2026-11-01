@@ -13,6 +13,15 @@ export const tailorRequestSchema = z.object({
   summary: z.optional(z.string()),
 });
 
+export const tailorJobRequestSchema = tailorRequestSchema.extend({
+  company_id: z.optional(z.coerce.number().int().positive()),
+  company_name: z.optional(z.string().trim().min(1)),
+  job_url: z.optional(z.string()),
+  role_status: z.optional(
+    z.enum(["wishlist", "applied", "oa", "interview", "offer", "rejected"]),
+  ),
+});
+
 export const tailorResponseSchema = z.object({
   plan: z.record(z.string(), z.unknown()),
   resume_data: z.record(z.string(), z.unknown()),
@@ -35,8 +44,9 @@ export const reviewRequestSchema = z.object({
   plan: z.record(z.string(), z.unknown()),
   edits: z.object({
     rewritten_text: z.record(z.string(), z.string()),
-    summary: z.optional(z.string()),
+    summary: z.nullish(z.string()),
   }),
+  font: z.optional(z.string()),
 });
 
 export const renderTypstRequestSchema = z.object({

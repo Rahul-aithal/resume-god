@@ -303,10 +303,7 @@ export class TrackerRepository {
 
   // ---- helpers ----
 
-  private async getCompany(
-    userId: string,
-    companyId: number,
-  ): Promise<CompanyRow> {
+  async getCompany(userId: string, companyId: number): Promise<CompanyRow> {
     const [company] = await this.db
       .select()
       .from(companies)

@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
+  Param,
   Post,
   Req,
   Res,
@@ -13,8 +15,10 @@ import type { SessionUser } from "../auth/session.guard";
 import {
   renderTypstRequestSchema,
   reviewRequestSchema,
+  tailorJobRequestSchema,
   tailorRequestSchema,
 } from "./tailor.schemas";
+import { TailorJobsService, type TailorJobInput } from "./tailor-jobs.service";
 import { TailorService } from "./tailor.service";
 import { TypstRenderService } from "./typst-render.service";
 
@@ -26,6 +30,7 @@ interface AuthedRequest extends Request {
 export class TailorController {
   constructor(
     private readonly tailorService: TailorService,
+    private readonly jobs: TailorJobsService,
     private readonly typst: TypstRenderService,
   ) {}
 
@@ -49,13 +54,37 @@ export class TailorController {
     );
   }
 
+  /** Accepts the work and returns at once; the worker does the tailoring. */
+  @Post("tailor/jobs")
+  @HttpCode(202)
+  async createJob(
+    @Req() request: AuthedRequest,
+    @Body({ schema: tailorJobRequestSchema }) body: TailorJobInput,
+  ) {
+    return await this.jobs.enqueue(request.user, body);
+  }
+
+  @Get("tailor/jobs")
+  async listJobs(@Req() request: AuthedRequest) {
+    return await this.jobs.list(request.user.id);
+  }
+
+  @Get("tailor/jobs/:jobId")
+  async getJob(@Req() request: AuthedRequest, @Param("jobId") jobId: string) {
+    return await this.jobs.get(request.user.id, jobId);
+  }
+
   @Post("review")
   async reviewEdits(
     @Req() request: AuthedRequest,
     @Body({ schema: reviewRequestSchema })
     body: {
       plan: Record<string, unknown>;
-      edits: { rewritten_text: Record<string, string>; summary?: string };
+      edits: {
+        rewritten_text: Record<string, string>;
+        summary?: string | null;
+      };
+      font?: string;
     },
   ) {
     const { rejected } = await this.tailorService.reviewEdits(
@@ -63,9 +92,18 @@ export class TailorController {
       body.plan,
       body.edits,
     );
+    // Rebuilt so accepted edits reach the PDF, and re-checked for grounding.
+    const { resume_data, validation } = await this.tailorService.resumeFromPlan(
+      request.user.id,
+      request.user,
+      body.plan,
+      { font: body.font, summary: body.edits.summary },
+    );
     return {
       plan: body.plan,
       rejected_edits: rejected,
+      resume_data,
+      validation,
     };
   }
 
