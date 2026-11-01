@@ -78,13 +78,15 @@ describe("CompaniesPage", () => {
     expect(screen.getByText("2 roles")).toBeDefined();
   });
 
-  it("creates a company through the form", async () => {
+  it("creates a company through the quick-add bar", async () => {
     renderWithProviders(<CompaniesPage />);
     await waitFor(() => {
       expect(screen.getByText("Goodspace")).toBeDefined();
     });
     fireEvent.change(
-      screen.getByPlaceholderText("Company name (e.g. Goodspace)"),
+      screen.getByPlaceholderText(
+        "Add a company (e.g. Goodspace) and press Enter",
+      ),
       {
         target: { value: "Rox" },
       },
