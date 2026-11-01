@@ -41,9 +41,6 @@ implementation.
   (`apps/server/.env`) points `DATABASE_URL` at `resume_god` on the
   same container. Compose dev instead exposes Postgres on 5432.
 
-The `PHASE_*.md` files describe the retired Python implementation and
-are kept for design history only.
-
 The core safety rule: the system may only ever present facts that exist
 in your reviewed knowledge graph. Unknown skills are reported as gaps,
 never promoted into claims.
