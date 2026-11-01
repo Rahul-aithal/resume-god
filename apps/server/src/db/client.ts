@@ -70,6 +70,7 @@ export async function truncateAll(db: AppDb): Promise<void> {
     "companies",
     "user_settings",
     "user_api_keys",
+    "tailor_jobs",
     "auth_verification",
     "auth_session",
     "auth_account",

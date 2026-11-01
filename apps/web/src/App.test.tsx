@@ -18,6 +18,7 @@ vi.mock("./lib/api", async (importOriginal) => {
     ...original,
     fetchMe: vi.fn(),
     fetchAccounts: vi.fn(),
+    fetchTailorJobs: vi.fn(() => Promise.resolve({ jobs: [] })),
     fetchDashboard: vi.fn(),
     logout: vi.fn(),
   };
@@ -43,6 +44,29 @@ describe("App", () => {
   beforeEach(() => {
     vi.mocked(api.fetchMe).mockReset();
     queryClient.clear();
+  });
+
+  it("counts tailoring jobs in progress in the nav", async () => {
+    vi.mocked(api.fetchMe).mockResolvedValue({
+      id: "user-1",
+      email: "tester@example.com",
+      display_name: "Tester",
+    });
+    vi.mocked(api.fetchDashboard).mockResolvedValue({
+      company_count: 0,
+      role_count: 0,
+      by_status: {},
+      recent_roles: [],
+      recent_artifacts: [],
+    });
+    vi.mocked(api.fetchTailorJobs).mockResolvedValueOnce({
+      jobs: [
+        { id: "a", status: "running" },
+        { id: "b", status: "failed" },
+      ],
+    } as never);
+    renderApp("/");
+    await screen.findAllByRole("link", { name: /Tailoring.*1 in progress/ });
   });
 
   it("renders a nav link", () => {

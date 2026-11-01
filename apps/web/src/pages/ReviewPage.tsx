@@ -39,7 +39,12 @@ export default function ReviewPage() {
   const [plan, setPlan] = useState<Record<string, unknown> | null>(
     (session?.plan as Record<string, unknown> | undefined) ?? null,
   );
+  const [resumeData, setResumeData] = useState<
+    Record<string, unknown> | undefined
+  >(session?.resumeData as Record<string, unknown> | undefined);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  // The bullet boxes are uncontrolled; a new key shows what the server kept.
+  const [revision, setRevision] = useState(0);
   const [summary, setSummary] = useState("");
   const [rejected, setRejected] = useState<string[]>([]);
   const [issues, setIssues] = useState<string[]>([]);
@@ -78,20 +83,36 @@ export default function ReviewPage() {
     ["rewriting", "Rewriting"],
   ];
 
+  /** Validates pending edits and returns the resume they produce. */
+  async function validateEdits() {
+    const fallbackSummary = resumeData?.summary;
+    const result = await postReview(
+      plan as never,
+      // Stray whitespace from pasting shouldn't get an edit rejected.
+      Object.fromEntries(
+        Object.entries(edits).map(([id, text]) => [id, text.trim()]),
+      ),
+      summary ||
+        (typeof fallbackSummary === "string" ? fallbackSummary : undefined),
+      typeof resumeData?.font === "string" ? resumeData.font : undefined,
+    );
+    setPlan(result.plan as Record<string, unknown>);
+    setResumeData(result.resume_data);
+    setSessionPlan(result.plan, session?.providers, {
+      resumeData: result.resume_data,
+    });
+    setRejected(result.rejected_edits);
+    setIssues(result.validation.issues);
+    setEdits({});
+    setRevision((value) => value + 1);
+    return result;
+  }
+
   async function submitReview() {
     setBusy(true);
     setError(null);
     try {
-      const result = await postReview(
-        plan as never,
-        edits,
-        summary || undefined,
-      );
-      setPlan(result.plan as Record<string, unknown>);
-      setSessionPlan(result.plan, session?.providers);
-      setRejected(result.rejected_edits);
-      setIssues(result.validation.issues);
-      setEdits({});
+      await validateEdits();
     } catch (error_) {
       setError(String(error_));
     } finally {
@@ -103,7 +124,13 @@ export default function ReviewPage() {
     setBusy(true);
     setError(null);
     try {
-      const blob = await postRender(plan as never);
+      // Unvalidated edits must not be silently left out of the PDF.
+      const pending =
+        !resumeData || summary !== "" || Object.keys(edits).length > 0;
+      const current = pending
+        ? (await validateEdits()).resume_data
+        : resumeData;
+      const blob = await postRender(current as never);
       const url = URL.createObjectURL(blob);
       setPdfUrl((previous) => {
         if (previous) URL.revokeObjectURL(previous);
@@ -245,6 +272,7 @@ export default function ReviewPage() {
                   <label className="text-xs font-medium text-ink-2">
                     AI wording (edit to override)
                     <Textarea
+                      key={revision}
                       className="mt-1.5 p-3 leading-relaxed"
                       rows={3}
                       defaultValue={entry.rewritten_text}

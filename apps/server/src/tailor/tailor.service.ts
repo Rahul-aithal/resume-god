@@ -32,6 +32,8 @@ export interface StageInfo {
   fallback_error: string | null;
 }
 
+export type TailorStage = "parsing" | "planning" | "rewriting" | "finishing";
+
 export interface TailorResult {
   plan: TailoringPlan;
   resume_data: ResumeData;
@@ -98,6 +100,7 @@ export class TailorService {
       font?: string;
       summary?: string;
     },
+    options: { onStage?: (stage: TailorStage) => void } = {},
   ): Promise<TailorResult> {
     const order = await this.orderFor(userId);
     const userKeys = await this.settings.userKeys(userId);
@@ -108,15 +111,11 @@ export class TailorService {
     );
 
     const impliesEdges = await this.repo.listImplies(userId);
-    const contact: ContactView = await this.graph.contact(
-      userId,
-      account.display_name,
-      account.email,
-    );
 
     const providers: Record<string, StageInfo> = {};
 
     // ---- 1. parse ----
+    options.onStage?.("parsing");
     const parseList = this.chain.resolveList(choice, order, userKeys);
     const parseResult = await this.chain.attemptEach(
       parseList.providers,
@@ -145,6 +144,7 @@ export class TailorService {
     };
 
     // ---- 2. plan ----
+    options.onStage?.("planning");
     const profileView = await this.profileView(userId);
     const plan = await buildTailoringPlan(profileView, input.jd_text, {
       // User-requested title wins; buildTailoringPlan 400s on mismatch.
@@ -157,6 +157,7 @@ export class TailorService {
     });
 
     // ---- 3. rewrite (LLM, deterministic fallback) ----
+    options.onStage?.("rewriting");
     const rewriteList = this.chain.resolveList(choice, order, userKeys);
     const rewriteResult = await this.chain.attemptEach(
       rewriteList.providers,
@@ -199,6 +200,39 @@ export class TailorService {
     };
 
     // ---- 4. resume-data + grounding ----
+    options.onStage?.("finishing");
+    const { resume_data, validation } = await this.resumeFromPlan(
+      userId,
+      account,
+      rewritten,
+      { font, summary: input.summary },
+    );
+
+    return {
+      plan: rewritten,
+      resume_data,
+      validation,
+      providers,
+    };
+  }
+
+  /** The resume a plan produces, checked against the reviewed graph. */
+  async resumeFromPlan(
+    userId: string,
+    account: { display_name: string; email: string },
+    plan: unknown,
+    options: { font?: string; summary?: string | null },
+  ) {
+    const profileView = await this.profileView(userId);
+    const contact: ContactView = await this.graph.contact(
+      userId,
+      account.display_name,
+      account.email,
+    );
+    const font = firstNonEmptyInput(
+      options.font,
+      (await this.settings.get(userId)).default_font,
+    );
     const techStackByParent: Record<string, string> = {};
     for (const parent of await this.repo.listParents(userId)) {
       const names: string[] = [];
@@ -210,12 +244,12 @@ export class TailorService {
     }
 
     const resumeData = buildResumeData(
-      rewritten as unknown as Parameters<typeof buildResumeData>[0],
+      plan as Parameters<typeof buildResumeData>[0],
       profileView,
       contact,
       {
         font,
-        summary: input.summary ?? null,
+        summary: options.summary ?? null,
         techStackByParent,
       },
     );
@@ -240,14 +274,12 @@ export class TailorService {
     );
 
     return {
-      plan: rewritten,
       resume_data: validation.data,
       validation: {
         dropped_bullets: validation.dropped_bullets,
         fallback_bullets: validation.fallback_bullets,
         issues: validation.issues,
       },
-      providers,
     };
   }
 

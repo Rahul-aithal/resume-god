@@ -22,7 +22,8 @@ import type {
   RoleHistoryResponse,
   RoleInput,
   RolePatch,
-  TailorResponse,
+  TailorJob,
+  TailorJobDetail,
   UserSettings,
 } from "@resume-god/api-client";
 import { API_PREFIX } from "@resume-god/api-client";
@@ -110,37 +111,47 @@ export function switchAccount(userId: string): Promise<{ status: string }> {
   });
 }
 
-export function postTailor(input: TailorInput): Promise<TailorResponse> {
-  return request<TailorResponse>("/tailor", {
+export function createTailorJob(input: TailorInput): Promise<TailorJob> {
+  return request<TailorJob>("/tailor/jobs", {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function fetchTailorJobs(): Promise<{ jobs: TailorJob[] }> {
+  return request<{ jobs: TailorJob[] }>("/tailor/jobs");
+}
+
+export function fetchTailorJob(id: string): Promise<TailorJobDetail> {
+  return request<TailorJobDetail>(`/tailor/jobs/${id}`);
 }
 
 export function postReview(
   plan: PlanJson,
   rewrittenText: Record<string, string>,
   summary?: string,
+  font?: string,
 ): Promise<ReviewResponse> {
   return request<ReviewResponse>("/review", {
     method: "POST",
     body: JSON.stringify({
       plan,
-      edits: { rewritten_text: rewrittenText, summary: summary ?? null },
+      edits: { rewritten_text: rewrittenText, summary },
+      font,
     }),
   });
 }
 
-export async function postRender(plan: PlanJson): Promise<Blob> {
+export async function postRender(resumeData: PlanJson): Promise<Blob> {
   const response = await fetch(`${API_PREFIX}/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ resume_data: resumeData }),
   });
   if (!response.ok) {
     const detail = await response
       .json()
-      .then((body) => body.detail ?? response.statusText)
+      .then((body) => body.message ?? body.detail ?? response.statusText)
       .catch(() => response.statusText);
     throw new ApiError(response.status, `API ${response.status}: ${detail}`);
   }

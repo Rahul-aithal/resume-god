@@ -16,9 +16,8 @@ import {
   createCompany as createCompanyApi,
   fetchCompanies,
   fetchSettings,
-  postTailor,
+  createTailorJob,
 } from "../lib/api";
-import { setSessionPlan } from "../lib/session";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto (LLM if key, else offline)" },
@@ -53,11 +52,6 @@ export default function NewJobPage() {
   const [summary, setSummary] = useState("");
   const [jdText, setJdText] = useState("");
 
-  const [tailored, setTailored] = useState<{
-    roleId: number | null;
-    skillDiff: Record<string, unknown> | null;
-  } | null>(null);
-
   const createCompany = useMutation({
     mutationFn: () => createCompanyApi({ name: newCompanyName }),
     onSuccess: (company) => {
@@ -71,7 +65,7 @@ export default function NewJobPage() {
     mutationFn: () => {
       const selectedId =
         companyId === "__new__" ? undefined : Number(companyId) || undefined;
-      return postTailor({
+      return createTailorJob({
         jd_text: jdText,
         target_title: targetTitle || undefined,
         provider,
@@ -84,14 +78,9 @@ export default function NewJobPage() {
         role_status: roleStatus,
       });
     },
-    onSuccess: (data) => {
-      setSessionPlan(data.plan, data.providers);
-      setTailored({
-        roleId: data.role_id ?? null,
-        skillDiff: (data.skill_diff as Record<string, unknown>) ?? null,
-      });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["companies"] });
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tailor-jobs"] });
+      navigate("/tailoring");
     },
   });
 
@@ -102,19 +91,11 @@ export default function NewJobPage() {
       ? newCompanyName.trim().length > 0
       : companyId !== "");
 
-  const diff = tailored?.skillDiff as {
-    summary?: string;
-    have?: unknown[];
-    inferred?: unknown[];
-    missing_no_evidence?: unknown[];
-    unknown_jd_terms?: unknown[];
-  } | null;
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="New application"
-        lede="Paste a job description; the plan is built only from your reviewed graph."
+        lede="Paste a job description. Your resume is prepared in the background, using only your reviewed graph."
       />
 
       <Card className="p-6">
@@ -214,7 +195,7 @@ export default function NewJobPage() {
             />
           </Field>
           {tailor.isError && (
-            <Alert role="alert" title="Could not generate the plan">
+            <Alert role="alert" title="Could not start tailoring">
               {tailor.error instanceof Error
                 ? tailor.error.message
                 : String(tailor.error)}
@@ -225,55 +206,10 @@ export default function NewJobPage() {
             loading={tailor.isPending}
             disabled={!canSubmit}
           >
-            {tailor.isPending ? "Tailoring…" : "Generate tailored plan"}
+            {tailor.isPending ? "Starting…" : "Start tailoring"}
           </Button>
         </form>
       </Card>
-
-      {tailored && (
-        <Card className="border-ok/40 p-6">
-          <h2 className="font-semibold text-ok">Plan generated</h2>
-          {diff?.summary && (
-            <p className="mt-1 text-sm text-ink-2">{diff.summary}</p>
-          )}
-          {tailored.roleId != null && (
-            <p className="mt-1 text-sm text-ink-2">
-              Recorded in your tracker —{" "}
-              <a
-                href={`/roles/${tailored.roleId}`}
-                className="text-brand underline"
-              >
-                view role
-              </a>
-              .
-            </p>
-          )}
-          {Array.isArray(diff?.have) && diff!.have!.length > 0 && (
-            <p className="mt-1 text-sm text-ink-2">
-              You have direct evidence for {diff!.have!.length} expected
-              skill(s)
-              {Array.isArray(diff?.inferred) &&
-                diff!.inferred!.length > 0 &&
-                ` (+${diff!.inferred!.length} inferred)`}
-              .
-            </p>
-          )}
-          <div className="mt-4 flex gap-2">
-            <Button onClick={() => navigate("/review")}>
-              Review the AI plan →
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                tailor.reset();
-                setTailored(null);
-              }}
-            >
-              Tailor another
-            </Button>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

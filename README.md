@@ -110,6 +110,21 @@ the page asks users to enter them again. `RESUME_GOD_LLM_ORDER` (default `gemini
 controls auto preference; every stage reports requested vs used with
 fallback reasons. Deterministic output never crashes without keys.
 
+## Background tailoring
+
+Tailoring runs as a background job, so it continues if you leave the page.
+Postgres is the queue (`tailor_jobs`, claimed with `FOR UPDATE SKIP LOCKED`),
+so jobs survive restarts and no extra service is needed. A running job that
+stops sending heartbeats for 2 minutes is retried, up to 3 attempts. Each
+server runs 2 jobs at once, and each user can have 10 in progress.
+
+- `POST /api/tailor/jobs` queues a job and returns immediately (202).
+- `GET /api/tailor/jobs` lists your latest 50 jobs, without their results.
+- `GET /api/tailor/jobs/:id` returns one job with its result.
+
+The web app lists them under Tailoring. `POST /api/tailor` still runs
+synchronously for scripts.
+
 ## JSON API
 
 ```bash
