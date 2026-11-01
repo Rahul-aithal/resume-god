@@ -1,4 +1,5 @@
-# Production-like base. Dev overrides live in compose.dev.yaml.
+# Production: NestJS server (Bun + Postgres + Typst) + nginx SPA.
+# One database: Postgres. Dev overrides live in compose.dev.yaml.
 services:
   db:
     image: postgres:16-alpine
@@ -15,25 +16,32 @@ services:
       timeout: 5s
       retries: 12
 
-  api:
+  server:
     build:
       context: .
-      dockerfile: docker/Dockerfile.api
-    container_name: resume-god-api
-    env_file:
-      - path: ./apps/api/.env
-        required: false
+      dockerfile: docker/Dockerfile.server
+    container_name: resume-god-server
     environment:
-      # Phase B will use DATABASE_URL; the tracker still uses SQLite today.
+      NODE_ENV: production
+      PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-resume_god}:${POSTGRES_PASSWORD:-resume-god-local}@db:5432/${POSTGRES_DB:-resume_god}
-      RESUME_GOD_DB: /data/companies.db
+      OUTPUTS_DIR: /data/outputs
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+    env_file:
+      - path: ./apps/server/.env
+        required: false
     volumes:
-      - appdata:/data
+      - server-data:/data
     expose:
-      - "8000"
+      - "3000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bun -e \"fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
 
   web:
     build:
@@ -43,31 +51,9 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - api
-
-  # Optional local knowledge-graph database (Phase 1 Neo4j loader).
-  neo4j:
-    image: neo4j:5.26-community
-    container_name: resume-god-neo4j
-    profiles: ["graph"]
-    environment:
-      NEO4J_AUTH: neo4j/resume-god-local
-      NEO4J_dbms_security_procedures_unrestricted: apoc.*
-      NEO4J_PLUGINS: '["apoc"]'
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    volumes:
-      - neo4j-data:/data
-      - neo4j-logs:/logs
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
+      server:
+        condition: service_healthy
 
 volumes:
   pgdata:
-  appdata:
-  neo4j-data:
-  neo4j-logs:
+  server-data:

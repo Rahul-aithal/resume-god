@@ -1,14 +1,21 @@
 import type {
+  ApiKeyStatus,
   ApplicationHistoryEntry,
   AuthProvidersInfo,
   Company,
+  DeviceAccount,
   CompanyDetail,
   CompanyInput,
   DashboardSummary,
   MeInfo,
   PlanJson,
-  ProfileImportResponse,
-  ProfilesResponse,
+  GraphAchievement,
+  GraphImportResult,
+  GraphParent,
+  GraphProjection,
+  GraphReviewState,
+  GraphSearchResponse,
+  GraphSkill,
   ProvidersStatus,
   ReviewResponse,
   Role,
@@ -41,12 +48,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const detail = await response
       .json()
       .then((body) => {
-        const value = body.detail;
+        // Error shape: message (string or string[]), or legacy detail.
+        const value = body.message ?? body.detail;
         if (typeof value === "string") return value;
         if (Array.isArray(value)) {
           return value
             .map((item) =>
-              typeof item.msg === "string" ? item.msg : JSON.stringify(item),
+              typeof item.msg === "string"
+                ? item.msg
+                : typeof item === "string"
+                  ? item
+                  : JSON.stringify(item),
             )
             .join("; ");
         }
@@ -85,6 +97,17 @@ export function fetchAuthProviders(): Promise<AuthProvidersInfo> {
 
 export async function logout(): Promise<void> {
   await fetch(`${API_PREFIX}/auth/logout`, { method: "POST" });
+}
+
+export function fetchAccounts(): Promise<{ accounts: DeviceAccount[] }> {
+  return request<{ accounts: DeviceAccount[] }>("/auth/accounts");
+}
+
+export function switchAccount(userId: string): Promise<{ status: string }> {
+  return request<{ status: string }>("/auth/accounts/switch", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
 }
 
 export function postTailor(input: TailorInput): Promise<TailorResponse> {
@@ -186,15 +209,166 @@ export function updateSettings(
   });
 }
 
-export function fetchProfiles(): Promise<ProfilesResponse> {
-  return request<ProfilesResponse>("/profiles");
+export function fetchApiKeys(): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>("/settings/api-keys");
 }
 
-export function importProfile(
-  profileYaml: string,
-): Promise<ProfileImportResponse> {
-  return request<ProfileImportResponse>("/profiles/import", {
-    method: "POST",
-    body: JSON.stringify({ profile_yaml: profileYaml }),
+export function saveApiKey(
+  provider: string,
+  apiKey: string,
+): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>(`/settings/api-keys/${provider}`, {
+    method: "PUT",
+    body: JSON.stringify({ api_key: apiKey }),
   });
+}
+
+export function deleteApiKey(
+  provider: string,
+): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>(`/settings/api-keys/${provider}`, {
+    method: "DELETE",
+  });
+}
+
+// ---- Knowledge graph ----
+
+export function fetchGraph(): Promise<GraphProjection> {
+  return request<GraphProjection>("/graph");
+}
+
+export function graphSearch(
+  q: string,
+  limit = 5,
+): Promise<GraphSearchResponse> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return request<GraphSearchResponse>(`/graph/search?${params}`);
+}
+
+export function createGraphSkill(body: {
+  name: string;
+  category?: string;
+  aliases?: string[];
+}): Promise<GraphSkill> {
+  return request<GraphSkill>("/graph/skills", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function fetchGraphSkill(id: string): Promise<GraphSkill> {
+  return request<GraphSkill>(`/graph/skills/${id}`);
+}
+
+export function fetchGraphAchievement(id: string): Promise<GraphAchievement> {
+  return request<GraphAchievement>(`/graph/achievements/${id}`);
+}
+
+export function updateGraphSkill(
+  id: string,
+  body: { name?: string; category?: string; aliases?: string[] },
+): Promise<GraphSkill> {
+  return request<GraphSkill>(`/graph/skills/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteGraphSkill(id: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/graph/skills/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function createGraphParent(body: {
+  kind: "experience" | "project";
+  name: string;
+  title?: string;
+  url?: string;
+  date_range?: string;
+}): Promise<GraphParent> {
+  return request<GraphParent>("/graph/parents", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateGraphParent(
+  id: string,
+  body: { name?: string; title?: string; url?: string; date_range?: string },
+): Promise<GraphParent> {
+  return request<GraphParent>(`/graph/parents/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteGraphParent(id: string): Promise<{ status: string }> {
+  return request<{ status: string }>(`/graph/parents/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function createGraphAchievement(body: {
+  parent_id: string;
+  text: string;
+  date_range?: string;
+  skills?: string[];
+  metrics?: string[];
+}): Promise<GraphAchievement> {
+  return request<GraphAchievement>("/graph/achievements", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function updateGraphAchievement(
+  id: string,
+  body: {
+    parent_id?: string;
+    text?: string;
+    date_range?: string;
+    skills?: string[];
+    metrics?: string[];
+  },
+): Promise<GraphAchievement> {
+  return request<GraphAchievement>(`/graph/achievements/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteGraphAchievement(
+  id: string,
+): Promise<{ status: string }> {
+  return request<{ status: string }>(`/graph/achievements/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function reviewGraph(): Promise<GraphReviewState> {
+  return request<GraphReviewState>("/graph/review", { method: "POST" });
+}
+
+export function unreviewGraph(): Promise<GraphReviewState> {
+  return request<GraphReviewState>("/graph/review", { method: "DELETE" });
+}
+
+export function importGraph(body: {
+  format: "yaml" | "json";
+  content: string;
+  mode: "replace" | "merge";
+}): Promise<GraphImportResult> {
+  return request<GraphImportResult>("/graph/import", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function exportGraph(
+  format: "yaml" | "json",
+): Promise<{ format: string; content: unknown }> {
+  return request<{ format: string; content: unknown }>(
+    `/graph/export?format=${format}`,
+  );
 }

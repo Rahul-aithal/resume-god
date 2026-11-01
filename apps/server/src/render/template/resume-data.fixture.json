@@ -1,0 +1,68 @@
+{
+  "contact": {
+    "name": "Rahul Aithal",
+    "location": "Bengaluru, KA",
+    "phone": "+91-9449332162",
+    "email": "aithalrahul34@gmail.com",
+    "linkedin": "linkedin.com/in/rahul-aithal",
+    "github": "Rahul-aithal",
+    "personal_site": "rahulaithal.site"
+  },
+  "target_title": "Software Developer",
+  "summary": "Final-year B.E. Computer Science student with production internship experience across two companies.",
+  "sections": [
+    {
+      "kind": "experience",
+      "role": "Frontend Developer Intern",
+      "organization": "XParth Technologies",
+      "location": "Bengaluru, India (Remote)",
+      "dates": "Jul 2026 – Present",
+      "bullets": [
+        "Building and shipping production frontend interfaces using Next.js, TypeScript, and Tailwind CSS.",
+        "Implemented reusable component architecture including data tables, dynamic forms, and file import workflows."
+      ]
+    },
+    {
+      "kind": "project",
+      "name": "Vaultr - Secure File Sharing Platform",
+      "role": "",
+      "tech_stack": "Next.js, TypeScript, PostgreSQL, Drizzle ORM",
+      "url": "https://github.com/Rahul-aithal/vaultr",
+      "dates": "2026",
+      "bullets": [
+        "Full-stack application with GitHub OAuth2 and PostgreSQL relational database design."
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "category": "Programming Languages",
+      "names": ["JavaScript", "TypeScript", "Python", "Go"]
+    },
+    {
+      "category": "Frontend",
+      "names": ["React.js", "Next.js", "TanStack Query", "Tailwind CSS"]
+    }
+  ],
+  "education": [
+    {
+      "degree": "B.E. Computer Science & Engineering",
+      "institution": "BNMIT, Bengaluru",
+      "dates": "Expected 2027",
+      "details": ["Data Structures & Algorithms", "Operating Systems"]
+    }
+  ],
+  "certifications": [
+    {
+      "name": "MongoDB Certified Developer",
+      "issuer": "MongoDB University",
+      "date": ""
+    }
+  ],
+  "soft_skills": [
+    {
+      "name": "Independent Problem-Solver",
+      "detail": "Debugged complex issues across DNS routing and production API failures"
+    }
+  ]
+}

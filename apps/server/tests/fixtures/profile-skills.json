@@ -1,0 +1,334 @@
+{
+  "skills": [
+    {
+      "id": "skill_python",
+      "name": "Python",
+      "aliases": []
+    },
+    {
+      "id": "skill_javascript",
+      "name": "JavaScript",
+      "aliases": ["JS"]
+    },
+    {
+      "id": "skill_typescript",
+      "name": "TypeScript",
+      "aliases": ["TS"]
+    },
+    {
+      "id": "skill_go",
+      "name": "Go",
+      "aliases": ["Golang"]
+    },
+    {
+      "id": "skill_cpp",
+      "name": "C++",
+      "aliases": []
+    },
+    {
+      "id": "skill_sql",
+      "name": "SQL",
+      "aliases": []
+    },
+    {
+      "id": "skill_n8n",
+      "name": "n8n",
+      "aliases": []
+    },
+    {
+      "id": "skill_model_context_protocol",
+      "name": "Model Context Protocol",
+      "aliases": ["MCP", "MCP Protocol"]
+    },
+    {
+      "id": "skill_llm_integration",
+      "name": "LLM Integration",
+      "aliases": ["LLM API Integration"]
+    },
+    {
+      "id": "skill_prompt_engineering",
+      "name": "Prompt Engineering",
+      "aliases": []
+    },
+    {
+      "id": "skill_ollama",
+      "name": "Ollama",
+      "aliases": []
+    },
+    {
+      "id": "skill_llama_2",
+      "name": "Llama 2",
+      "aliases": []
+    },
+    {
+      "id": "skill_gemini_api",
+      "name": "Gemini API",
+      "aliases": []
+    },
+    {
+      "id": "skill_agentic_tooling",
+      "name": "Agentic Tooling",
+      "aliases": []
+    },
+    {
+      "id": "skill_claude_code",
+      "name": "Claude Code",
+      "aliases": ["Claude"]
+    },
+    {
+      "id": "skill_cursor",
+      "name": "Cursor",
+      "aliases": []
+    },
+    {
+      "id": "skill_github_copilot",
+      "name": "GitHub Copilot",
+      "aliases": []
+    },
+    {
+      "id": "skill_node_js",
+      "name": "Node.js",
+      "aliases": ["Node", "NodeJS"]
+    },
+    {
+      "id": "skill_nestjs",
+      "name": "NestJS",
+      "aliases": ["Nest", "Nest.js"]
+    },
+    {
+      "id": "skill_express_js",
+      "name": "Express.js",
+      "aliases": ["Express"]
+    },
+    {
+      "id": "skill_fastapi",
+      "name": "FastAPI",
+      "aliases": ["Fast API"]
+    },
+    {
+      "id": "skill_rest_apis",
+      "name": "REST APIs",
+      "aliases": ["REST", "REST API", "RESTful API", "RESTful APIs"]
+    },
+    {
+      "id": "skill_webhooks",
+      "name": "Webhooks",
+      "aliases": []
+    },
+    {
+      "id": "skill_rabbitmq",
+      "name": "RabbitMQ",
+      "aliases": []
+    },
+    {
+      "id": "skill_microservices",
+      "name": "Microservices",
+      "aliases": []
+    },
+    {
+      "id": "skill_nginx",
+      "name": "Nginx",
+      "aliases": []
+    },
+    {
+      "id": "skill_react_js",
+      "name": "React.js",
+      "aliases": ["React"]
+    },
+    {
+      "id": "skill_next_js",
+      "name": "Next.js",
+      "aliases": ["Next", "NextJS"]
+    },
+    {
+      "id": "skill_tailwind_css",
+      "name": "Tailwind CSS",
+      "aliases": ["Tailwind"]
+    },
+    {
+      "id": "skill_shadcn_ui",
+      "name": "shadcn/ui",
+      "aliases": []
+    },
+    {
+      "id": "skill_radix_ui",
+      "name": "Radix UI",
+      "aliases": []
+    },
+    {
+      "id": "skill_chakra_ui",
+      "name": "Chakra UI",
+      "aliases": []
+    },
+    {
+      "id": "skill_tanstack_query",
+      "name": "TanStack Query",
+      "aliases": []
+    },
+    {
+      "id": "skill_tanstack_table",
+      "name": "TanStack Table",
+      "aliases": []
+    },
+    {
+      "id": "skill_htmx",
+      "name": "HTMX",
+      "aliases": []
+    },
+    {
+      "id": "skill_markdown",
+      "name": "Markdown",
+      "aliases": []
+    },
+    {
+      "id": "skill_templ",
+      "name": "templ",
+      "aliases": []
+    },
+    {
+      "id": "skill_http",
+      "name": "HTTP",
+      "aliases": []
+    },
+    {
+      "id": "skill_mongodb",
+      "name": "MongoDB",
+      "aliases": ["Mongo"]
+    },
+    {
+      "id": "skill_postgresql",
+      "name": "PostgreSQL",
+      "aliases": ["Postgres", "PG"]
+    },
+    {
+      "id": "skill_redis",
+      "name": "Redis",
+      "aliases": []
+    },
+    {
+      "id": "skill_drizzle_orm",
+      "name": "Drizzle ORM",
+      "aliases": []
+    },
+    {
+      "id": "skill_sqlc",
+      "name": "sqlc",
+      "aliases": []
+    },
+    {
+      "id": "skill_minio",
+      "name": "MinIO",
+      "aliases": []
+    },
+    {
+      "id": "skill_docker",
+      "name": "Docker",
+      "aliases": []
+    },
+    {
+      "id": "skill_docker_compose",
+      "name": "Docker Compose",
+      "aliases": ["docker-compose"]
+    },
+    {
+      "id": "skill_aws_ec2",
+      "name": "AWS EC2",
+      "aliases": []
+    },
+    {
+      "id": "skill_github_actions",
+      "name": "GitHub Actions",
+      "aliases": ["GHA"]
+    },
+    {
+      "id": "skill_vercel",
+      "name": "Vercel",
+      "aliases": []
+    },
+    {
+      "id": "skill_ci_cd",
+      "name": "CI/CD",
+      "aliases": ["CI", "CD"]
+    },
+    {
+      "id": "skill_prometheus",
+      "name": "Prometheus",
+      "aliases": []
+    },
+    {
+      "id": "skill_grafana",
+      "name": "Grafana",
+      "aliases": []
+    },
+    {
+      "id": "skill_oauth2",
+      "name": "OAuth2",
+      "aliases": ["OAuth"]
+    },
+    {
+      "id": "skill_jwt",
+      "name": "JWT",
+      "aliases": []
+    },
+    {
+      "id": "skill_rbac",
+      "name": "Role-Based Access Control",
+      "aliases": []
+    },
+    {
+      "id": "skill_jest",
+      "name": "Jest",
+      "aliases": []
+    },
+    {
+      "id": "skill_vitest",
+      "name": "Vitest",
+      "aliases": []
+    },
+    {
+      "id": "skill_git",
+      "name": "Git",
+      "aliases": []
+    },
+    {
+      "id": "skill_github",
+      "name": "GitHub",
+      "aliases": []
+    },
+    {
+      "id": "skill_postman",
+      "name": "Postman",
+      "aliases": []
+    },
+    {
+      "id": "skill_ffmpeg",
+      "name": "FFmpeg",
+      "aliases": []
+    },
+    {
+      "id": "skill_docxtemplater",
+      "name": "Docxtemplater",
+      "aliases": []
+    },
+    {
+      "id": "skill_google_calendar_api",
+      "name": "Google Calendar API",
+      "aliases": []
+    },
+    {
+      "id": "skill_telegram_bot_api",
+      "name": "Telegram Bot API",
+      "aliases": []
+    },
+    {
+      "id": "skill_cloudinary",
+      "name": "Cloudinary",
+      "aliases": []
+    },
+    {
+      "id": "skill_hls_streaming",
+      "name": "HLS Video Streaming",
+      "aliases": []
+    }
+  ]
+}

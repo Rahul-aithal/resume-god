@@ -123,9 +123,18 @@ export interface ProvidersStatus {
 }
 
 export interface MeInfo {
-  id: number;
+  /** Better Auth user id (text) since the NestJS migration. */
+  id: string;
   email: string;
   display_name: string;
+}
+
+/** An account signed in on this browser. */
+export interface DeviceAccount {
+  id: string;
+  email: string;
+  display_name: string;
+  active: boolean;
 }
 
 /** OAuth setup state reported by GET /api/auth/providers. */
@@ -245,24 +254,121 @@ export interface UserSettings {
   llm_order: string;
   gemini_model: string;
   glm_model: string;
+  openai_model: string;
   default_font: string;
 }
 
-export interface ProfileVersion {
-  version: number;
-  status: string;
-  is_active: boolean;
-  created_at: string | null;
+export interface ApiKeyStatus {
+  provider: string;
+  /** Which key a run would use. A user's own key beats the server's. */
+  source: "user" | "server" | "none";
+  last4: string | null;
+  needs_reentry: boolean;
 }
 
-export interface ProfilesResponse {
-  versions: ProfileVersion[];
-  has_active: boolean;
-  active_status: string | null;
+// ---- Knowledge graph (normalized; files are transport only) ----
+
+export type GraphNodeKind =
+  | "skill"
+  | "experience"
+  | "project"
+  | "achievement"
+  | "education"
+  | "certification";
+
+export type GraphEdgeType = "USES" | "PART_OF" | "DEMONSTRATES" | "IMPLIES";
+
+export interface GraphNode {
+  id: string;
+  kind: GraphNodeKind;
+  label: string;
+  detail: string;
 }
 
-export interface ProfileImportResponse {
-  version: number;
-  status: string;
-  is_active: boolean;
+export interface GraphEdge {
+  from: string;
+  to: string;
+  type: GraphEdgeType;
+}
+
+export interface GraphProjection {
+  reviewed_at: string | null;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  stats: {
+    skills: number;
+    parents: number;
+    achievements: number;
+    education: number;
+    certifications: number;
+    edges: number;
+  };
+}
+
+export interface GraphSkill {
+  id: string;
+  name: string;
+  category: string;
+  aliases: string[];
+}
+
+export interface GraphParent {
+  id: string;
+  kind: "experience" | "project";
+  name: string;
+  title: string;
+  url: string;
+  date_range: string;
+  skills: string[];
+}
+
+export interface GraphAchievement {
+  id: string;
+  parent_id: string;
+  text: string;
+  date_range: string;
+  skills: string[];
+  metrics: string[];
+}
+
+export interface GraphEducation {
+  id: string;
+  institution: string;
+  credential: string;
+  date_range: string;
+}
+
+export interface GraphCertification {
+  id: string;
+  name: string;
+  issuer: string;
+  issued_on: string;
+}
+
+export interface GraphSearchResult {
+  id: string;
+  text: string;
+  parent_name: string;
+  skills: string[];
+  similarity: number;
+}
+
+export interface GraphSearchResponse {
+  results: GraphSearchResult[];
+}
+
+export interface GraphImportResult {
+  imported: {
+    skills: number;
+    parents: number;
+    achievements: number;
+    education: number;
+    certifications: number;
+    implies: number;
+  };
+}
+
+export interface GraphReviewState {
+  reviewed: boolean;
+  reviewed_at: string | null;
 }

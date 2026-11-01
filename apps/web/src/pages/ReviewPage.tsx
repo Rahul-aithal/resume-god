@@ -1,5 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  Alert,
+  buttonVariants,
+  Button,
+  Card,
+  DotBadge,
+  EmptyState,
+  PageHeader,
+  Textarea,
+} from "../components/ui";
 import { postRender, postReview } from "../lib/api";
 import { getSessionPlan, setSessionPlan } from "../lib/session";
 
@@ -39,24 +49,34 @@ export default function ReviewPage() {
 
   if (!plan) {
     return (
-      <div className="mx-auto max-w-xl rounded-xl border border-slate-200 bg-white p-8 text-center">
-        <h1 className="text-2xl font-bold">Review</h1>
-        <p className="mt-2 text-slate-500">
-          No plan loaded. Tailor a job first — the plan will wait for you here
-          (even after a reload).
-        </p>
-        <Link
-          to="/jobs/new"
-          className="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+      <div className="py-6">
+        <EmptyState
+          title="No plan loaded"
+          action={
+            <Link to="/jobs/new" className={buttonVariants("primary")}>
+              + New application
+            </Link>
+          }
         >
-          + New application
-        </Link>
+          Tailor a job first — the plan will wait for you here (even after a
+          reload).
+        </EmptyState>
+        <h1 className="sr-only">Review</h1>
       </div>
     );
   }
 
   const rewrites = rewritesOf(plan);
   const diff = diffOf(plan);
+  const stages = (session?.providers ?? {}) as Record<
+    string,
+    { requested?: string; used?: string; fallback_error?: string | null }
+  >;
+  const stageNames: Array<[string, string]> = [
+    ["parsing", "Parsing"],
+    ["selection", "Selection"],
+    ["rewriting", "Rewriting"],
+  ];
 
   async function submitReview() {
     setBusy(true);
@@ -109,76 +129,90 @@ export default function ReviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Review the AI plan</h1>
-          {session?.providers && (
-            <p className="mt-1 text-sm text-slate-500">
-              Parsing: {(session.providers.parsing as { used?: string })?.used}{" "}
-              · Selection:{" "}
-              {(session.providers.selection as { used?: string })?.used} ·
-              Rewriting:{" "}
-              {(session.providers.rewriting as { used?: string })?.used}
-            </p>
-          )}
+      <PageHeader
+        title="Review the AI plan"
+        lede="Every bullet must trace back to your reviewed graph — edit any wording before it renders."
+        actions={
+          pdfUrl && (
+            <Button variant="secondary" onClick={downloadPdf}>
+              Download PDF
+            </Button>
+          )
+        }
+      />
+
+      {session?.providers && (
+        <div className="flex flex-wrap gap-2">
+          {stageNames.map(([key, label]) => {
+            const stage = stages[key];
+            if (!stage) return null;
+            const drifted =
+              stage.requested && stage.used && stage.requested !== stage.used;
+            return (
+              <DotBadge
+                key={key}
+                color={stage.fallback_error ? "review" : "st-wishlist"}
+                title={
+                  stage.fallback_error
+                    ? `Fallback: ${stage.fallback_error}`
+                    : undefined
+                }
+              >
+                {label}: {stage.used ?? "?"}
+                {drifted ? ` (requested ${stage.requested})` : ""}
+                {stage.fallback_error ? " ⚠" : ""}
+              </DotBadge>
+            );
+          })}
         </div>
-        {pdfUrl && (
-          <button
-            onClick={downloadPdf}
-            className="rounded-lg border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50"
-          >
-            Download PDF
-          </button>
-        )}
-      </div>
+      )}
 
       {rejected.length > 0 && (
-        <p
-          role="alert"
-          className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800"
-        >
+        <Alert role="alert" tone="review">
           Rejected edits (reverted to reviewed originals): {rejected.join(", ")}
-        </p>
+        </Alert>
       )}
       {issues.length > 0 && (
-        <ul className="list-inside list-disc rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-          {issues.map((issue) => (
-            <li key={issue}>{issue}</li>
-          ))}
-        </ul>
+        <Alert role="alert" tone="review">
+          <ul className="list-inside list-disc">
+            {issues.map((issue) => (
+              <li key={issue}>{issue}</li>
+            ))}
+          </ul>
+        </Alert>
       )}
 
       {diff && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold">
+        <Card className="p-5">
+          <h2 className="text-sm font-semibold">
             Skill diff — they expect vs you have
           </h2>
           {diff.summary && (
-            <p className="mt-1 text-sm text-slate-600">{diff.summary}</p>
+            <p className="mt-1 text-sm text-ink-2">{diff.summary}</p>
           )}
-          <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+          <div className="mt-4 grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
             <SkillList
               title={`Direct evidence (${diff.have?.length ?? 0})`}
               skills={diff.have}
-              tone="text-emerald-700"
+              color="ok"
             />
             <SkillList
               title={`Inferred (${diff.inferred?.length ?? 0})`}
               skills={diff.inferred}
-              tone="text-blue-700"
+              color="st-applied"
             />
             <SkillList
               title={`Missing — no evidence (${unevidenced.length})`}
               skills={unevidenced}
-              tone="text-rose-700"
+              color="danger"
             />
             <SkillList
               title={`Unknown JD terms (${unknownTerms.length})`}
               skills={unknownTerms}
-              tone="text-slate-500"
+              color="st-wishlist"
             />
           </div>
-        </div>
+        </Card>
       )}
 
       <div className="space-y-4">
@@ -190,37 +224,28 @@ export default function ReviewPage() {
             status: string;
           };
           return (
-            <article
-              key={id}
-              className="rounded-xl border border-slate-200 bg-white p-4"
-            >
+            <Card key={id} className="p-5">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="font-mono text-xs text-slate-400">{id}</h3>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                    entry.used_rewrite
-                      ? "bg-indigo-100 text-indigo-700"
-                      : "bg-slate-100 text-slate-600"
-                  }`}
-                >
+                <h3 className="font-mono text-xs text-ink-2">{id}</h3>
+                <DotBadge color={entry.used_rewrite ? "brand" : "st-wishlist"}>
                   {entry.used_rewrite ? "AI rewrite used" : "original"} (
                   {entry.status})
-                </span>
+                </DotBadge>
               </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="mt-3 grid gap-4 lg:grid-cols-2">
                 <div>
-                  <p className="text-xs font-medium text-slate-500">
+                  <p className="text-xs font-medium text-ink-2">
                     Reviewed source
                   </p>
-                  <p className="mt-1 rounded-lg bg-slate-50 p-3 text-sm">
+                  <p className="mt-1.5 rounded-lg bg-surface-2 p-3 text-sm leading-relaxed text-ink">
                     {entry.source_text}
                   </p>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-500">
+                  <label className="text-xs font-medium text-ink-2">
                     AI wording (edit to override)
-                    <textarea
-                      className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm"
+                    <Textarea
+                      className="mt-1.5 p-3 leading-relaxed"
                       rows={3}
                       defaultValue={entry.rewritten_text}
                       onChange={(event) =>
@@ -233,14 +258,14 @@ export default function ReviewPage() {
                   </label>
                 </div>
               </div>
-            </article>
+            </Card>
           );
         })}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold">Coverage</h2>
-        <ul className="mt-2 space-y-1 text-sm">
+      <Card className="p-5">
+        <h2 className="text-sm font-semibold">Coverage</h2>
+        <ul className="mt-3 space-y-2 text-sm">
           {coverageOf(plan).map((row, index) => {
             const item = row as Record<string, string>;
             const status = String(item.Status ?? item.status ?? "");
@@ -251,71 +276,60 @@ export default function ReviewPage() {
             return (
               <li
                 key={String(item.id ?? item.Requirement ?? item.name ?? index)}
+                className="flex items-start gap-2"
               >
-                <span
-                  className={`mr-2 inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
-                    covered
-                      ? "bg-emerald-100 text-emerald-700"
-                      : "bg-rose-100 text-rose-700"
-                  }`}
-                >
+                <DotBadge color={covered ? "ok" : "danger"}>
                   {status || "?"}
+                </DotBadge>
+                <span className="text-ink">
+                  {String(
+                    item.Requirement ?? item.name ?? JSON.stringify(item),
+                  )}
                 </span>
-                {String(item.Requirement ?? item.name ?? JSON.stringify(item))}
               </li>
             );
           })}
         </ul>
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <label className="block text-sm font-medium">
+      <Card className="p-5">
+        <label className="block text-sm font-medium text-ink">
           Summary override (optional, applies to review + render)
-          <textarea
-            className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm"
+          <Textarea
+            className="mt-1.5"
             rows={2}
             value={summary}
             onChange={(event) => setSummary(event.target.value)}
             placeholder="Leave empty to keep the reviewed profile summary"
           />
         </label>
-      </div>
+      </Card>
 
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700"
-        >
-          {error}
-        </p>
-      )}
+      {error && <Alert role="alert">{error}</Alert>}
 
       <div className="flex flex-wrap gap-3">
-        <button
+        <Button
+          variant="secondary"
           disabled={busy}
+          loading={busy}
           onClick={submitReview}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {busy ? "Working…" : "Validate my edits"}
-        </button>
-        <button
-          disabled={busy}
-          onClick={renderPdf}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-        >
+        </Button>
+        <Button disabled={busy} loading={busy} onClick={renderPdf}>
           {busy ? "Rendering…" : "Render PDF"}
-        </button>
+        </Button>
       </div>
 
       {pdfUrl && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="font-semibold">Rendered resume</h2>
+        <Card className="overflow-hidden p-5">
+          <h2 className="text-sm font-semibold">Rendered resume</h2>
           <iframe
             title="Rendered resume PDF"
             src={pdfUrl}
-            className="mt-3 h-[700px] w-full rounded-lg border border-slate-200"
+            className="mt-3 h-[700px] w-full rounded-lg border border-line"
           />
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -324,16 +338,18 @@ export default function ReviewPage() {
 function SkillList({
   title,
   skills,
-  tone,
+  color,
 }: {
   title: string;
   skills?: { name?: string }[];
-  tone: string;
+  color: string;
 }) {
   return (
     <div>
-      <p className={`text-xs font-semibold ${tone}`}>{title}</p>
-      <p className="mt-1 text-slate-600">
+      <p className="text-xs font-semibold" style={{ color: `var(--${color})` }}>
+        {title}
+      </p>
+      <p className="mt-1 text-ink-2">
         {(skills ?? [])
           .map((skill) => skill.name)
           .filter(Boolean)

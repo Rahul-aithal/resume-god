@@ -1,31 +1,32 @@
-# Local development overrides: live reload, host ports, debug access.
+# Local development overrides: live reload + host ports.
 # Usage: docker compose -f compose.yaml -f compose.dev.yaml up --build
 #
 # URLs in dev mode (the SPA is the only UI):
 #   http://localhost:5173  React SPA (vite HMR, proxies /api + /files)
-#   http://localhost:8000  JSON API only (no UI — / is a JSON pointer)
-#   localhost:5432         postgres
+#   http://localhost:3000  NestJS server (JSON API + auth)
+#   localhost:5432         Postgres (dev only — drizzle-kit, tests)
 services:
   db:
     ports:
-      # Dev only — never expose postgres in production.
+      # Dev only — never expose Postgres in production.
       - "5432:5432"
 
-  api:
-    # Dev runs as root so the bind-mounted checkout + venv volume stay writable.
+  server:
     user: root
     ports:
-      - "8000:8000"
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://resume_god:resume-god-local@db:5432/resume_god
     volumes:
-      - ./apps/api:/app
-      # Keep the container venv intact when bind-mounting source.
-      - api-venv:/app/.venv
-    working_dir: /app
-    # --proxy-headers matches the prod container: vite/nginx is the sole
-    # ingress on the compose network, so forwarded headers are trusted.
-    command: >-
-      uv run python -m resume_god.cli web --host 0.0.0.0 --port 8000
-      --proxy-headers --forwarded-allow-ips=*
+      # Live source; outputs persist on the shared volume.
+      - ./apps/server:/app/apps/server
+      - ./packages:/app/packages
+      - server-data:/data
+    command: sh -c "cd /app/apps/server && bun install && bun --watch run src/main.ts"
+    depends_on:
+      db:
+        condition: service_healthy
 
   web:
     # Dev image with bun; the prod image (nginx) cannot run vite.
@@ -35,8 +36,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # Vite proxies /api and /files to the API container.
-      VITE_API_PROXY: http://api:8000
+      # Vite proxies /api and /files to the NestJS server.
+      VITE_API_PROXY: http://server:3000
     volumes:
       - .:/repo
       - /repo/node_modules
@@ -45,7 +46,7 @@ services:
     working_dir: /repo/apps/web
     command: sh -c "bun install && bun run dev -- --host --port 5173"
     depends_on:
-      - api
+      - server
 
 volumes:
-  api-venv:
+  server-data:

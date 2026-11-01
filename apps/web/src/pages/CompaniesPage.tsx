@@ -1,6 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import SidePanelLayout from "../components/SidePanelLayout";
+import {
+  Alert,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  PageHeader,
+  Skeleton,
+  Input,
+  Textarea,
+} from "../components/ui";
 import { createCompany, fetchCompanies } from "../lib/api";
 
 export default function CompaniesPage() {
@@ -9,6 +21,138 @@ export default function CompaniesPage() {
     queryKey: ["companies"],
     queryFn: fetchCompanies,
   });
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Companies"
+        lede="Type a name to add one — details can come later."
+      />
+      <QuickAdd />
+      <SidePanelLayout
+        id="companies-panel"
+        sideLabel="details"
+        heightClass="h-[calc(100dvh-13rem)]"
+        side={
+          <Card className="p-5">
+            <DetailsForm />
+          </Card>
+        }
+      >
+        <div className="h-full space-y-3 overflow-y-auto">
+          {companies.isPending && (
+            <div aria-busy="true" className="space-y-3">
+              <Skeleton className="h-20 rounded-lg" />
+              <Skeleton className="h-20 rounded-lg" />
+            </div>
+          )}
+          {companies.isError && (
+            <Alert role="alert">{String(companies.error)}</Alert>
+          )}
+          {companies.data &&
+            (companies.data.companies.length === 0 ? (
+              <EmptyState title="No companies yet">
+                Type a name in the box above and press Enter.
+              </EmptyState>
+            ) : (
+              <ul className="space-y-2.5">
+                {companies.data.companies.map((company) => (
+                  <li key={company.id}>
+                    <Card className="p-4 transition-colors hover:ring-foreground/20">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link
+                            to={`/companies/${company.id}`}
+                            className="font-semibold text-brand hover:underline"
+                          >
+                            {company.name}
+                          </Link>
+                          {company.location && (
+                            <span className="ml-2 text-sm text-ink-2">
+                              {company.location}
+                            </span>
+                          )}
+                          {company.website && (
+                            <a
+                              href={company.website}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ml-2 text-sm text-brand hover:underline"
+                            >
+                              website
+                            </a>
+                          )}
+                        </div>
+                        <span className="shrink-0 rounded-full bg-surface-2 px-3 py-1 text-xs font-medium text-ink-2">
+                          {company.role_count} role
+                          {company.role_count === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      {company.about && (
+                        <p className="mt-2 line-clamp-2 text-sm text-ink-2">
+                          {company.about}
+                        </p>
+                      )}
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            ))}
+        </div>
+      </SidePanelLayout>
+    </div>
+  );
+}
+
+/** One-field quick add: a name is enough to create a company record. The
+ * server upserts by name, so details can be attached later. */
+function QuickAdd() {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => createCompany({ name }),
+    onSuccess: () => {
+      setName("");
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ["companies"] });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (err) => setError(String(err)),
+  });
+
+  return (
+    <form
+      className="flex gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name.trim()) create.mutate();
+      }}
+    >
+      <Input
+        placeholder="Add a company (e.g. Goodspace) and press Enter"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+        aria-label="Company name"
+      />
+      <Button
+        type="submit"
+        loading={create.isPending}
+        disabled={!name.trim()}
+        className="shrink-0"
+      >
+        Add company
+      </Button>
+      {error && <Alert role="alert">{error}</Alert>}
+    </form>
+  );
+}
+
+/** Details form: same-name upsert attaches website/location/about to an
+ * existing record created via quick add. */
+function DetailsForm() {
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [location, setLocation] = useState("");
@@ -30,116 +174,52 @@ export default function CompaniesPage() {
   });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <h1 className="text-2xl font-bold">Companies</h1>
-        {companies.isPending && <p className="mt-2 text-slate-500">Loading…</p>}
-        {companies.isError && (
-          <p role="alert" className="mt-2 text-rose-600">
-            {String(companies.error)}
-          </p>
-        )}
-        {companies.data &&
-          (companies.data.companies.length === 0 ? (
-            <p className="mt-2 text-slate-500">
-              No companies yet — add your first one on the right.
-            </p>
-          ) : (
-            <ul className="mt-4 space-y-2">
-              {companies.data.companies.map((company) => (
-                <li
-                  key={company.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 hover:border-indigo-300"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <Link
-                        to={`/companies/${company.id}`}
-                        className="font-semibold text-indigo-700 hover:underline"
-                      >
-                        {company.name}
-                      </Link>
-                      {company.location && (
-                        <span className="ml-2 text-sm text-slate-500">
-                          {company.location}
-                        </span>
-                      )}
-                      {company.website && (
-                        <a
-                          href={company.website}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="ml-2 text-sm text-indigo-600 hover:underline"
-                        >
-                          website
-                        </a>
-                      )}
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm">
-                      {company.role_count} role
-                      {company.role_count === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  {company.about && (
-                    <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                      {company.about}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ))}
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold">Add / update company</h2>
-        <form
-          className="mt-3 space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (name.trim()) create.mutate();
-          }}
-        >
-          <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Company name (e.g. Goodspace)"
+    <>
+      <h2 className="text-sm font-semibold">Add / update details</h2>
+      <p className="mt-1 text-xs text-ink-2">
+        Existing name? Only the fields you fill in are updated.
+      </p>
+      <form
+        className="mt-3 space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (name.trim()) create.mutate();
+        }}
+      >
+        <Field label="Company name">
+          <Input
+            placeholder="e.g. Goodspace"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
           />
-          <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Website"
-            value={website}
-            onChange={(event) => setWebsite(event.target.value)}
-          />
-          <input
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="Location"
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-          />
-          <textarea
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            placeholder="All data about the company…"
-            rows={4}
-            value={about}
-            onChange={(event) => setAbout(event.target.value)}
-          />
-          {error && (
-            <p role="alert" className="text-sm text-rose-600">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={create.isPending || !name.trim()}
-            className="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {create.isPending ? "Saving…" : "Add company"}
-          </button>
-        </form>
-      </div>
-    </div>
+        </Field>
+        <Input
+          placeholder="Website"
+          value={website}
+          onChange={(event) => setWebsite(event.target.value)}
+        />
+        <Input
+          placeholder="Location"
+          value={location}
+          onChange={(event) => setLocation(event.target.value)}
+        />
+        <Textarea
+          placeholder="All data about the company…"
+          rows={4}
+          value={about}
+          onChange={(event) => setAbout(event.target.value)}
+        />
+        {error && <Alert role="alert">{error}</Alert>}
+        <Button
+          type="submit"
+          loading={create.isPending}
+          disabled={!name.trim()}
+          className="w-full"
+        >
+          {create.isPending ? "Saving…" : "Save details"}
+        </Button>
+      </form>
+    </>
   );
 }

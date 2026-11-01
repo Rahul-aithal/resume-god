@@ -66,6 +66,7 @@ describe("NewJobPage", () => {
       llm_order: "gemini,glm",
       gemini_model: "gemini-3-flash-preview",
       glm_model: "glm-4.6",
+      openai_model: "gpt-4.1",
       default_font: "Calibri",
     });
     vi.mocked(api.postTailor).mockRejectedValue(
@@ -77,9 +78,12 @@ describe("NewJobPage", () => {
 
     renderPage();
 
-    await screen.findByText("Goodspace");
-    const company = screen.getByRole("combobox", { name: /company/i });
-    fireEvent.change(company, { target: { value: "1" } });
+    await waitFor(() => expect(api.fetchCompanies).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("combobox", { name: /company/i }));
+    // Base UI only commits a mouse click that began on the item.
+    const option = await screen.findByRole("option", { name: "Goodspace" });
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
     fireEvent.change(screen.getByRole("textbox", { name: /target title/i }), {
       target: { value: "Platform Engineer" },
     });

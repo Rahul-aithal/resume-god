@@ -2,6 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ROLE_STATUSES } from "@resume-god/api-client";
+import { SelectField, toOptions } from "../components/SelectField";
+import {
+  Alert,
+  Button,
+  Card,
+  Field,
+  PageHeader,
+  Input,
+  Textarea,
+} from "../components/ui";
 import {
   createCompany as createCompanyApi,
   fetchCompanies,
@@ -9,6 +19,14 @@ import {
   postTailor,
 } from "../lib/api";
 import { setSessionPlan } from "../lib/session";
+
+const PROVIDER_OPTIONS = [
+  { value: "auto", label: "Auto (LLM if key, else offline)" },
+  { value: "openai", label: "OpenAI (GPT)" },
+  { value: "gemini", label: "Gemini" },
+  { value: "glm", label: "GLM" },
+  { value: "deterministic", label: "Offline only" },
+];
 
 export default function NewJobPage() {
   const navigate = useNavigate();
@@ -93,10 +111,13 @@ export default function NewJobPage() {
   } | null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">New application</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="New application"
+        lede="Paste a job description; the plan is built only from your reviewed graph."
+      />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
+      <Card className="p-6">
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -105,161 +126,130 @@ export default function NewJobPage() {
           }}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium">
-              Company
-              <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            <Field label="Company">
+              <SelectField
                 value={companyId}
-                onChange={(event) => setCompanyId(event.target.value)}
+                onValueChange={setCompanyId}
+                placeholder="Select a company…"
                 required
-              >
-                <option value="" disabled>
-                  Select a company…
-                </option>
-                {(companies.data?.companies ?? []).map((company) => (
-                  <option key={company.id} value={String(company.id)}>
-                    {company.name}
-                  </option>
-                ))}
-                <option value="__new__">+ New company…</option>
-              </select>
-            </label>
+                options={[
+                  ...(companies.data?.companies ?? []).map((company) => ({
+                    value: String(company.id),
+                    label: company.name,
+                  })),
+                  { value: "__new__", label: "+ New company…" },
+                ]}
+              />
+            </Field>
             {companyId === "__new__" && (
-              <label className="block text-sm font-medium">
-                New company name
-                <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              <Field label="New company name">
+                <Input
                   placeholder="e.g. Goodspace"
                   value={newCompanyName}
                   onChange={(event) => setNewCompanyName(event.target.value)}
                   required
                 />
-              </label>
+              </Field>
             )}
-            <label className="block text-sm font-medium">
-              Target title
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            <Field label="Target title">
+              <Input
                 placeholder="Software Engineer"
                 value={targetTitle}
                 onChange={(event) => setTargetTitle(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Job posting URL (optional)
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            </Field>
+            <Field label="Job posting URL (optional)">
+              <Input
                 placeholder="https://…"
                 value={jobUrl}
                 onChange={(event) => setJobUrl(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Pipeline status
-              <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            </Field>
+            <Field label="Pipeline status">
+              <SelectField
                 value={roleStatus}
-                onChange={(event) => setRoleStatus(event.target.value)}
-              >
-                {ROLE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Provider
-              <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                onValueChange={setRoleStatus}
+                options={toOptions(ROLE_STATUSES)}
+              />
+            </Field>
+            <Field label="Provider">
+              <SelectField
                 value={provider}
-                onChange={(event) => setProvider(event.target.value)}
-              >
-                <option value="auto">Auto (LLM if key, else offline)</option>
-                <option value="gemini">Gemini</option>
-                <option value="glm">GLM</option>
-                <option value="deterministic">Offline only</option>
-              </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Max bullets
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                onValueChange={setProvider}
+                options={PROVIDER_OPTIONS}
+              />
+            </Field>
+            <Field label="Max bullets">
+              <Input
                 value={maxAchievements}
                 onChange={(event) => setMaxAchievements(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Font (default from settings:{" "}
-              {settings.data?.default_font ?? "Calibri"})
-              <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+            </Field>
+            <Field
+              label="Font"
+              hint={`Default from settings: ${settings.data?.default_font ?? "Calibri"}`}
+            >
+              <Input
                 placeholder={settings.data?.default_font ?? "Calibri"}
                 value={font}
                 onChange={(event) => setFont(event.target.value)}
               />
-            </label>
+            </Field>
           </div>
-          <label className="block text-sm font-medium">
-            Summary override (optional)
-            <input
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+          <Field label="Summary override (optional)">
+            <Input
               placeholder="Leave empty to use the reviewed profile summary"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
             />
-          </label>
-          <label className="block text-sm font-medium">
-            Job description
-            <textarea
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+          </Field>
+          <Field label="Job description">
+            <Textarea
+              className="font-mono text-[13px] leading-relaxed"
               value={jdText}
               onChange={(event) => setJdText(event.target.value)}
               rows={12}
               placeholder="Paste the full job description here…"
               required
             />
-          </label>
+          </Field>
           {tailor.isError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
-            >
-              <p className="font-semibold">Could not generate the plan</p>
-              <p className="mt-1">
-                {tailor.error instanceof Error
-                  ? tailor.error.message
-                  : String(tailor.error)}
-              </p>
-            </div>
+            <Alert role="alert" title="Could not generate the plan">
+              {tailor.error instanceof Error
+                ? tailor.error.message
+                : String(tailor.error)}
+            </Alert>
           )}
-          <button
+          <Button
             type="submit"
+            loading={tailor.isPending}
             disabled={!canSubmit}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {tailor.isPending ? "Tailoring…" : "Generate tailored plan"}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
 
       {tailored && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-          <h2 className="font-semibold text-emerald-800">Plan generated</h2>
+        <Card className="border-ok/40 p-6">
+          <h2 className="font-semibold text-ok">Plan generated</h2>
           {diff?.summary && (
-            <p className="mt-1 text-sm text-emerald-900">{diff.summary}</p>
+            <p className="mt-1 text-sm text-ink-2">{diff.summary}</p>
           )}
           {tailored.roleId != null && (
-            <p className="mt-1 text-sm text-emerald-900">
+            <p className="mt-1 text-sm text-ink-2">
               Recorded in your tracker —{" "}
-              <a href={`/roles/${tailored.roleId}`} className="underline">
+              <a
+                href={`/roles/${tailored.roleId}`}
+                className="text-brand underline"
+              >
                 view role
               </a>
               .
             </p>
           )}
           {Array.isArray(diff?.have) && diff!.have!.length > 0 && (
-            <p className="mt-1 text-sm text-emerald-900">
+            <p className="mt-1 text-sm text-ink-2">
               You have direct evidence for {diff!.have!.length} expected
               skill(s)
               {Array.isArray(diff?.inferred) &&
@@ -268,24 +258,21 @@ export default function NewJobPage() {
               .
             </p>
           )}
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => navigate("/review")}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-            >
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => navigate("/review")}>
               Review the AI plan →
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => {
                 tailor.reset();
                 setTailored(null);
               }}
-              className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
             >
               Tailor another
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

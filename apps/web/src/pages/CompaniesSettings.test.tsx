@@ -22,6 +22,9 @@ vi.mock("../lib/api", async (importOriginal) => {
     fetchSettings: vi.fn(),
     fetchProviders: vi.fn(),
     updateSettings: vi.fn(),
+    fetchApiKeys: vi.fn(),
+    saveApiKey: vi.fn(),
+    deleteApiKey: vi.fn(),
   };
 });
 
@@ -78,13 +81,15 @@ describe("CompaniesPage", () => {
     expect(screen.getByText("2 roles")).toBeDefined();
   });
 
-  it("creates a company through the form", async () => {
+  it("creates a company through the quick-add bar", async () => {
     renderWithProviders(<CompaniesPage />);
     await waitFor(() => {
       expect(screen.getByText("Goodspace")).toBeDefined();
     });
     fireEvent.change(
-      screen.getByPlaceholderText("Company name (e.g. Goodspace)"),
+      screen.getByPlaceholderText(
+        "Add a company (e.g. Goodspace) and press Enter",
+      ),
       {
         target: { value: "Rox" },
       },
@@ -101,10 +106,21 @@ describe("CompaniesPage", () => {
 describe("SettingsPage", () => {
   beforeEach(() => {
     queryClient.clear();
+    vi.mocked(api.fetchApiKeys).mockResolvedValue({
+      keys: [
+        {
+          provider: "openai",
+          source: "server",
+          last4: null,
+          needs_reentry: false,
+        },
+      ],
+    });
     vi.mocked(api.fetchSettings).mockResolvedValue({
       llm_order: "gemini,glm",
       gemini_model: "gemini-3-flash-preview",
       glm_model: "glm-4.6",
+      openai_model: "gpt-4.1",
       default_font: "Calibri",
     });
     vi.mocked(api.fetchProviders).mockResolvedValue({
@@ -117,6 +133,7 @@ describe("SettingsPage", () => {
       llm_order: "glm,gemini",
       gemini_model: "gemini-3-flash-preview",
       glm_model: "glm-4.6",
+      openai_model: "gpt-4.1",
       default_font: "Times New Roman",
     });
   });
@@ -140,5 +157,28 @@ describe("SettingsPage", () => {
       );
     });
     expect(await screen.findByText("Settings saved.")).toBeDefined();
+  });
+
+  it("saves a personal API key and shows only its last characters", async () => {
+    vi.mocked(api.saveApiKey).mockResolvedValue({
+      keys: [
+        {
+          provider: "openai",
+          source: "user",
+          last4: "1234",
+          needs_reentry: false,
+        },
+      ],
+    });
+    renderWithProviders(<SettingsPage />);
+    expect(await screen.findByText("Using the server's key")).toBeDefined();
+    const input = screen.getByLabelText("OpenAI API key") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "sk-secret-1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+    await waitFor(() => {
+      expect(api.saveApiKey).toHaveBeenCalledWith("openai", "sk-secret-1234");
+    });
+    expect(await screen.findByText(/Your key ending in 1234/)).toBeDefined();
+    expect(input.value).toBe("");
   });
 });

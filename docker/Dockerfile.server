@@ -1,0 +1,53 @@
+# NestJS server image: Bun runtime + Typst + resume fonts.
+# Postgres holds all data (DATABASE_URL); outputs live on server-data.
+
+# ---- stage 1: Bun runtime ----
+FROM oven/bun:1.4-slim AS runtime
+
+# ---- stage 2: Typst binary (matches the python-era install script) ----
+FROM ghcr.io/typst/typst:v0.13.1 AS typst
+
+# ---- final ----
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl fontconfig fonts-liberation \
+  && echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" | debconf-set-selections \
+  && sed -i 's/^Components: main$/Components: main contrib/' /etc/apt/sources.list.d/debian.sources \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends ttf-mscorefonts-installer \
+  && fc-cache -f \
+  && rm -rf /var/lib/apt/lists/*
+# True Arial for the resume template font chain (Arial → Carlito → Liberation).
+# Liberation Sans remains as the metric-compatible fallback.
+
+COPY --from=runtime /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=typst /bin/typst /usr/local/bin/typst
+
+WORKDIR /app
+
+# Install dependencies first (layer cache).
+COPY package.json bun.lock ./
+COPY apps/server/package.json apps/server/
+COPY packages/api-client/package.json packages/api-client/
+RUN cd apps/server && bun install --frozen
+
+# Application source.
+COPY apps/server/src apps/server/src
+COPY apps/server/drizzle apps/server/drizzle
+COPY apps/server/drizzle.config.ts apps/server/
+COPY apps/server/tsconfig.json apps/server/
+COPY packages/api-client/src packages/api-client/src
+COPY packages/api-client/tsconfig.json packages/api-client/
+
+WORKDIR /app/apps/server
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    OUTPUTS_DIR=/data/outputs
+
+EXPOSE 3000
+
+HEALTHCHECK CMD bun -e "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["bun", "run", "src/main.ts"]

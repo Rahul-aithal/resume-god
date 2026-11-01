@@ -1,155 +1,72 @@
-import { NavLink, Route, Routes, useNavigate } from "react-router-dom";
-import { AuthProvider, RequireAuth, useAuth, useLogout } from "./lib/auth";
-import CompaniesPage from "./pages/CompaniesPage";
-import CompanyDetailPage from "./pages/CompanyDetailPage";
-import DashboardPage from "./pages/DashboardPage";
-import LoginPage from "./pages/LoginPage";
-import NewJobPage from "./pages/NewJobPage";
-import ProfilesPage from "./pages/ProfilesPage";
-import ReviewPage from "./pages/ReviewPage";
-import RoleDetailPage from "./pages/RoleDetailPage";
-import SettingsPage from "./pages/SettingsPage";
+import { lazy, type ComponentType } from "react";
+import { Link, Route, Routes } from "react-router-dom";
+import AppShell, { type LazyPage } from "./components/AppShell";
+import { buttonVariants, EmptyState } from "./components/ui";
+import { AuthProvider, RequireAuth } from "./lib/auth";
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-    isActive
-      ? "bg-indigo-600 text-white"
-      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-  }`;
+/** Route-level code splitting: every page is its own chunk, fetched on
+ * first visit and prefetched from the nav on hover/focus. */
+function lazyPage(loader: () => Promise<{ default: ComponentType }>): LazyPage {
+  return Object.assign(lazy(loader), { preload: loader });
+}
 
-function Header() {
-  const auth = useAuth();
-  const logout = useLogout();
-  const navigate = useNavigate();
+const LoginPage = lazyPage(() => import("./pages/LoginPage"));
+const DashboardPage = lazyPage(() => import("./pages/DashboardPage"));
+const NewJobPage = lazyPage(() => import("./pages/NewJobPage"));
+const ReviewPage = lazyPage(() => import("./pages/ReviewPage"));
+const CompaniesPage = lazyPage(() => import("./pages/CompaniesPage"));
+const CompanyDetailPage = lazyPage(() => import("./pages/CompanyDetailPage"));
+const RoleDetailPage = lazyPage(() => import("./pages/RoleDetailPage"));
+const GraphPage = lazyPage(() => import("./pages/GraphPage"));
+const SettingsPage = lazyPage(() => import("./pages/SettingsPage"));
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
-
+function NotFound() {
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-4 py-3">
-        <NavLink to="/" className="text-lg font-bold text-indigo-700">
-          resume-god
-        </NavLink>
-        <nav className="flex flex-wrap items-center gap-1">
-          <NavLink to="/" end className={navLinkClass}>
-            Dashboard
-          </NavLink>
-          <NavLink to="/jobs/new" className={navLinkClass}>
-            New application
-          </NavLink>
-          <NavLink to="/review" className={navLinkClass}>
-            Review
-          </NavLink>
-          <NavLink to="/companies" className={navLinkClass}>
-            Companies
-          </NavLink>
-          <NavLink to="/profiles" className={navLinkClass}>
-            Profiles
-          </NavLink>
-          <NavLink to="/settings" className={navLinkClass}>
-            Settings
-          </NavLink>
-        </nav>
-        <div className="ml-auto flex items-center gap-3 text-sm">
-          {auth.isAuthenticated ? (
-            <>
-              <span className="text-slate-500">Signed in</span>
-              <button
-                onClick={handleLogout}
-                className="rounded-md border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-100"
-              >
-                Log out
-              </button>
-            </>
-          ) : (
-            <NavLink to="/login" className={navLinkClass}>
-              Login
-            </NavLink>
-          )}
-        </div>
-      </div>
-    </header>
+    <EmptyState
+      title="Page not found"
+      action={
+        <Link to="/" className={buttonVariants("primary")}>
+          Back to dashboard
+        </Link>
+      }
+    >
+      The address doesn't match any page in the app.
+    </EmptyState>
   );
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <div className="min-h-screen bg-slate-50 text-slate-900">
-        <Header />
-        <main className="mx-auto max-w-6xl px-4 py-6">
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <DashboardPage />
-                </RequireAuth>
-              }
+      <Routes>
+        <Route
+          element={
+            <AppShell
+              preloadMap={{
+                "/": DashboardPage.preload,
+                "/jobs/new": NewJobPage.preload,
+                "/review": ReviewPage.preload,
+                "/companies": CompaniesPage.preload,
+                "/graph": GraphPage.preload,
+                "/settings": SettingsPage.preload,
+              }}
             />
-            <Route
-              path="/jobs/new"
-              element={
-                <RequireAuth>
-                  <NewJobPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/review"
-              element={
-                <RequireAuth>
-                  <ReviewPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/companies"
-              element={
-                <RequireAuth>
-                  <CompaniesPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/companies/:id"
-              element={
-                <RequireAuth>
-                  <CompanyDetailPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/roles/:id"
-              element={
-                <RequireAuth>
-                  <RoleDetailPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/profiles"
-              element={
-                <RequireAuth>
-                  <ProfilesPage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <RequireAuth>
-                  <SettingsPage />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </main>
-      </div>
+          }
+        >
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<RequireAuth />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="/jobs/new" element={<NewJobPage />} />
+            <Route path="/review" element={<ReviewPage />} />
+            <Route path="/companies" element={<CompaniesPage />} />
+            <Route path="/companies/:id" element={<CompanyDetailPage />} />
+            <Route path="/roles/:id" element={<RoleDetailPage />} />
+            <Route path="/graph" element={<GraphPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Route>
+      </Routes>
     </AuthProvider>
   );
 }

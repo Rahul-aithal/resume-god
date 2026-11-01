@@ -7,16 +7,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { MeInfo } from "@resume-god/api-client";
 import { fetchMe, logout as apiLogout } from "./api";
 
 interface AuthValue {
-  userId: number | null;
+  user: MeInfo | null;
+  userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthValue>({
+  user: null,
   userId: null,
   isLoading: true,
   isAuthenticated: false,
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value: AuthValue = {
+    user: me.data ?? null,
     userId: me.data?.id ?? null,
     isLoading: me.isPending,
     isAuthenticated: me.data != null && !expired,
@@ -62,18 +66,24 @@ export function useLogout(): () => Promise<void> {
   }, [queryClient]);
 }
 
-export function RequireAuth({ children }: { children: ReactNode }) {
+/** Layout route: renders the matched child route once the session resolves,
+ * otherwise sends the visitor to login with the intended path in state. */
+export function RequireAuth() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   if (isLoading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center text-slate-500">
-        Checking your session…
+      <div
+        aria-busy="true"
+        className="flex min-h-[50vh] flex-col justify-center gap-3"
+      >
+        <div className="skeleton h-4 w-40" />
+        <div className="skeleton h-4 w-64" />
       </div>
     );
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  return <>{children}</>;
+  return <Outlet />;
 }
