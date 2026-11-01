@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ROLE_STATUSES } from "@resume-god/api-client";
+import { controlCls } from "./ui";
 import { patchRole } from "../lib/api";
 
 export default function RoleStatusEditor({
@@ -30,7 +31,8 @@ export default function RoleStatusEditor({
   return (
     <span className="inline-flex items-center gap-2">
       <select
-        className="rounded-lg border border-slate-300 px-2 py-1 text-xs"
+        aria-label={`Status for role ${roleId}`}
+        className={`${controlCls} w-auto px-2 py-1 text-xs`}
         value={value}
         onChange={(event) => {
           setValue(event.target.value);
@@ -43,7 +45,7 @@ export default function RoleStatusEditor({
           </option>
         ))}
       </select>
-      {error && <span className="text-xs text-rose-600">{error}</span>}
+      {error && <span className="text-xs text-danger">{error}</span>}
     </span>
   );
 }

@@ -43,7 +43,11 @@ describe("App", () => {
       new api.ApiError(401, "Login required"),
     );
     renderApp();
-    expect(screen.getByRole("link", { name: "Dashboard" })).toBeDefined();
+    // The nav renders once for the desktop sidebar and once for the mobile
+    // top bar; happy-dom applies no CSS, so both are in the accessibility tree.
+    expect(
+      screen.getAllByRole("link", { name: "Dashboard" }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("redirects anonymous users from protected routes to login", async () => {
@@ -75,6 +79,8 @@ describe("App", () => {
       expect(screen.getByRole("heading", { name: "Dashboard" })).toBeDefined();
     });
     expect(screen.getByText("Log out")).toBeDefined();
-    expect(screen.getByRole("link", { name: "Companies" })).toBeDefined();
+    expect(
+      screen.getAllByRole("link", { name: "Companies" }).length,
+    ).toBeGreaterThan(0);
   });
 });

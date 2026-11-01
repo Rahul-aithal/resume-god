@@ -5,10 +5,12 @@ import {
   type Node,
   ReactFlow,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 
 import type {
@@ -16,6 +18,15 @@ import type {
   GraphNode as GraphNodeData,
   GraphProjection,
 } from "@resume-god/api-client";
+import {
+  Alert,
+  Button,
+  Card,
+  DotBadge,
+  Field,
+  KindBadge,
+  controlCls,
+} from "../components/ui";
 import {
   deleteGraphAchievement,
   deleteGraphParent,
@@ -32,20 +43,24 @@ import {
   updateGraphSkill,
 } from "../lib/api";
 
-const KIND_COLOR: Record<string, string> = {
-  skill: "#4f46e5",
-  experience: "#0891b2",
-  project: "#0d9488",
-  achievement: "#ca8a04",
-  education: "#9333ea",
-  certification: "#db2777",
-};
+const KINDS = [
+  "skill",
+  "experience",
+  "project",
+  "achievement",
+  "education",
+  "certification",
+] as const;
+
+/** Node and edge colors read the theme's CSS variables, so the canvas
+ * follows light/dark without re-rendering the graph. */
+const kindColor = (kind: string) => `var(--kind-${kind}, var(--st-wishlist))`;
 
 const EDGE_COLOR: Record<GraphEdgeType, string> = {
-  USES: "#0891b2",
-  PART_OF: "#94a3b8",
-  DEMONSTRATES: "#ca8a04",
-  IMPLIES: "#4f46e5",
+  USES: "var(--kind-experience)",
+  PART_OF: "var(--line-strong)",
+  DEMONSTRATES: "var(--kind-achievement)",
+  IMPLIES: "var(--kind-skill)",
 };
 
 function toFlowData(projection: GraphProjection): {
@@ -53,19 +68,20 @@ function toFlowData(projection: GraphProjection): {
   edges: Edge[];
 } {
   const counts = new Map<string, number>();
-  const grid = (kind: string, index: number) => {
+  const grid = (kind: string) => {
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
-    const column = Object.keys(KIND_COLOR).indexOf(kind);
+    const column = KINDS.indexOf(kind as (typeof KINDS)[number]);
     return { x: column * 280, y: (counts.get(kind)! - 1) * 90 };
   };
-  const nodes: Node[] = projection.nodes.map((node: GraphNodeData, index) => ({
+  const nodes: Node[] = projection.nodes.map((node: GraphNodeData) => ({
     id: node.id,
-    position: grid(node.kind, index),
+    position: grid(node.kind),
     data: { label: node.label, kind: node.kind, detail: node.detail },
     style: {
-      background: "#fff",
-      border: `2px solid ${KIND_COLOR[node.kind] ?? "#64748b"}`,
-      borderRadius: 8,
+      background: "var(--surface)",
+      color: "var(--ink)",
+      border: `2px solid ${kindColor(node.kind)}`,
+      borderRadius: 10,
       padding: 6,
       fontSize: 11,
       width: 240,
@@ -77,7 +93,8 @@ function toFlowData(projection: GraphProjection): {
     target: edge.to,
     label: edge.type,
     style: { stroke: EDGE_COLOR[edge.type], strokeWidth: 1.5 },
-    labelStyle: { fontSize: 9, fill: "#475569" },
+    labelStyle: { fontSize: 9, fill: "var(--ink-2)" },
+    labelBgStyle: { fill: "var(--surface)" },
   }));
   return { nodes, edges };
 }
@@ -121,6 +138,10 @@ export default function GraphPage() {
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["graph"] });
   }, [queryClient]);
+
+  // `fitView` only applies at init and needs measured nodes; FitOnLoad below
+  // refits once per graph state. Drags and label edits don't change the
+  // stats key, so they never reset the user's view.
 
   const onError = useCallback((error: unknown) => {
     setActionError(error instanceof Error ? error.message : String(error));
@@ -313,11 +334,13 @@ export default function GraphPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Knowledge graph</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Knowledge graph
+          </h1>
           {projection && (
-            <p className="text-sm text-slate-500">
+            <p className="tnum mt-1 text-sm text-ink-2">
               {projection.stats.skills} skills · {projection.stats.parents}{" "}
               experiences/projects · {projection.stats.achievements}{" "}
               achievements · {projection.stats.edges} edges
@@ -326,52 +349,53 @@ export default function GraphPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {projection?.reviewed_at ? (
-            <button
-              className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={mutations.review.isPending}
               onClick={() => mutations.review.mutate(false)}
+              className="border-ok/40 text-ok hover:bg-ok/10"
             >
               Reviewed ✓ (click to un-review)
-            </button>
+            </Button>
           ) : (
-            <button
-              className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600"
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={mutations.review.isPending}
               onClick={() => mutations.review.mutate(true)}
+              className="border-review/50 text-review hover:bg-review/10"
             >
               Mark reviewed
-            </button>
+            </Button>
           )}
-          <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => mutations.exportGraph.mutate("yaml")}
           >
             Export YAML
-          </button>
-          <button
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100"
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => mutations.exportGraph.mutate("json")}
           >
             Export JSON
-          </button>
+          </Button>
         </div>
       </div>
 
-      {actionError && (
-        <p
-          role="alert"
-          className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700"
-        >
-          {actionError}
-        </p>
-      )}
+      {actionError && <Alert role="alert">{actionError}</Alert>}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-        <div className="h-[540px] overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <Card className="graph-canvas h-[540px] overflow-hidden">
           {graph.isPending ? (
-            <p className="p-6 text-sm text-slate-500">Loading graph…</p>
+            <p className="p-6 text-sm text-ink-2">Loading graph…</p>
           ) : graph.isError ? (
-            <p role="alert" className="p-6 text-sm text-rose-600">
+            <Alert role="alert" className="m-6">
               Failed to load graph: {String(graph.error)}
-            </p>
+            </Alert>
           ) : (
             <ReactFlow
               nodes={nodes}
@@ -382,89 +406,86 @@ export default function GraphPage() {
               fitView
               proOptions={{ hideAttribution: true }}
             >
-              <Background gap={18} />
+              <Background
+                gap={18}
+                bgColor="var(--surface)"
+                color="var(--line)"
+              />
               <Controls showInteractive={false} />
+              <FitOnLoad flowKey={flowKey} />
             </ReactFlow>
           )}
-        </div>
+        </Card>
 
         <div className="space-y-4">
           {selected ? (
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <span
-                  className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
-                  style={{ background: KIND_COLOR[selected.kind] ?? "#64748b" }}
-                >
-                  {selected.kind}
-                </span>
-                <code className="text-xs text-slate-400">{selected.id}</code>
+            <Card className="space-y-3 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <KindBadge kind={selected.kind} />
+                <code className="truncate text-xs text-ink-2">
+                  {selected.id}
+                </code>
               </div>
-              <label className="block text-sm font-medium">
-                Label
+              <Field label="Label">
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className={controlCls}
                   value={editLabel}
                   onChange={(event) => setEditLabel(event.target.value)}
                 />
-              </label>
+              </Field>
               {(selected.kind === "skill" ||
                 selected.kind === "experience" ||
                 selected.kind === "project") && (
-                <label className="block text-sm font-medium">
-                  {selected.kind === "skill" ? "Category" : "Title"}
+                <Field label={selected.kind === "skill" ? "Category" : "Title"}>
                   <input
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className={controlCls}
                     value={editDetail}
                     onChange={(event) => setEditDetail(event.target.value)}
                   />
-                </label>
+                </Field>
               )}
               {selected.kind === "skill" && (
-                <label className="block text-sm font-medium">
-                  Aliases (comma-separated)
+                <Field label="Aliases (comma-separated)">
                   <input
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    className={controlCls}
                     value={editAliases}
                     onChange={(event) => setEditAliases(event.target.value)}
                     placeholder="JS, Javascript"
                   />
-                </label>
+                </Field>
               )}
               {selected.kind === "achievement" && (
                 <>
-                  <label className="block text-sm font-medium">
-                    Skills (comma-separated names)
+                  <Field label="Skills (comma-separated names)">
                     <input
-                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                      className={controlCls}
                       value={editSkills}
                       onChange={(event) => setEditSkills(event.target.value)}
                       placeholder="TypeScript, React.js"
                     />
-                  </label>
-                  <label className="block text-sm font-medium">
-                    Metrics (one per line)
+                  </Field>
+                  <Field label="Metrics (one per line)">
                     <textarea
-                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+                      className={`${controlCls} font-mono text-xs`}
                       rows={3}
                       value={editMetrics}
                       onChange={(event) => setEditMetrics(event.target.value)}
                       placeholder={"2M req/day\n40% faster"}
                     />
-                  </label>
+                  </Field>
                 </>
               )}
               <div className="flex gap-2">
-                <button
-                  className="flex-1 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                  disabled={mutations.updateSkill.isPending}
+                <Button
+                  className="flex-1"
+                  loading={mutations.updateSkill.isPending}
                   onClick={saveSelected}
                 >
                   Save
-                </button>
+                </Button>
                 {deletable && (
-                  <button
-                    className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
+                  <Button
+                    variant="danger"
                     onClick={() =>
                       mutations.deleteNode.mutate({
                         kind: selected.kind,
@@ -473,28 +494,31 @@ export default function GraphPage() {
                     }
                   >
                     Delete
-                  </button>
+                  </Button>
                 )}
-                <button
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-100"
-                  onClick={() => setSelected(null)}
-                >
+                <Button variant="secondary" onClick={() => setSelected(null)}>
                   Close
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
           ) : (
-            <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">
-              Click a node to view and edit it. Colors: indigo = skill, cyan =
-              experience, teal = project, amber = achievement.
-            </p>
+            <Card className="space-y-3 p-4 text-sm text-ink-2">
+              <p>Click a node to view and edit it.</p>
+              <div className="flex flex-wrap gap-1.5">
+                {KINDS.map((kind) => (
+                  <DotBadge key={kind} color={`kind-${kind}`}>
+                    {kind}
+                  </DotBadge>
+                ))}
+              </div>
+            </Card>
           )}
 
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <Card className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Import</h2>
             <div className="flex gap-2 text-sm">
               <select
-                className="rounded-lg border border-slate-300 px-2 py-1.5"
+                className={`${controlCls} w-auto px-2 py-1.5`}
                 value={importFormat}
                 onChange={(event) =>
                   setImportFormat(event.target.value as "yaml" | "json")
@@ -504,7 +528,7 @@ export default function GraphPage() {
                 <option value="json">JSON</option>
               </select>
               <select
-                className="rounded-lg border border-slate-300 px-2 py-1.5"
+                className={`${controlCls} w-auto px-2 py-1.5`}
                 value={importMode}
                 onChange={(event) =>
                   setImportMode(event.target.value as "replace" | "merge")
@@ -515,21 +539,37 @@ export default function GraphPage() {
               </select>
             </div>
             <textarea
-              className="h-32 w-full rounded-lg border border-slate-300 p-2 font-mono text-xs"
+              className={`${controlCls} h-32 p-2 font-mono text-xs`}
               placeholder="Paste a profile document (skills, experiences, projects, achievements…)"
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
             />
-            <button
-              className="w-full rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
+            <Button
+              variant="secondary"
+              className="w-full"
               disabled={!importText.trim() || mutations.importGraph.isPending}
+              loading={mutations.importGraph.isPending}
               onClick={() => mutations.importGraph.mutate()}
             >
               {mutations.importGraph.isPending ? "Importing…" : "Import graph"}
-            </button>
-          </div>
+            </Button>
+          </Card>
         </div>
       </div>
     </div>
   );
+}
+
+/** Refits the canvas once per graph state, after nodes have measurable
+ * dimensions — the declarative `fitView` prop can run before that. */
+function FitOnLoad({ flowKey }: { flowKey: string }) {
+  const initialized = useNodesInitialized();
+  const { fitView } = useReactFlow();
+  const fittedKey = useRef("");
+  useEffect(() => {
+    if (!initialized || fittedKey.current === flowKey) return;
+    fittedKey.current = flowKey;
+    void fitView({ padding: 0.15, duration: 250 });
+  }, [initialized, flowKey, fitView]);
+  return null;
 }

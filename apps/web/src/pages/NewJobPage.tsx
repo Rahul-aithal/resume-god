@@ -3,6 +3,14 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ROLE_STATUSES } from "@resume-god/api-client";
 import {
+  Alert,
+  Button,
+  Card,
+  Field,
+  PageHeader,
+  controlCls,
+} from "../components/ui";
+import {
   createCompany as createCompanyApi,
   fetchCompanies,
   fetchSettings,
@@ -93,10 +101,13 @@ export default function NewJobPage() {
   } | null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">New application</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title="New application"
+        lede="Paste a job description; the plan is built only from your reviewed graph."
+      />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
+      <Card className="p-6">
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -105,10 +116,9 @@ export default function NewJobPage() {
           }}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium">
-              Company
+            <Field label="Company">
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 value={companyId}
                 onChange={(event) => setCompanyId(event.target.value)}
                 required
@@ -123,41 +133,37 @@ export default function NewJobPage() {
                 ))}
                 <option value="__new__">+ New company…</option>
               </select>
-            </label>
+            </Field>
             {companyId === "__new__" && (
-              <label className="block text-sm font-medium">
-                New company name
+              <Field label="New company name">
                 <input
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                  className={controlCls}
                   placeholder="e.g. Goodspace"
                   value={newCompanyName}
                   onChange={(event) => setNewCompanyName(event.target.value)}
                   required
                 />
-              </label>
+              </Field>
             )}
-            <label className="block text-sm font-medium">
-              Target title
+            <Field label="Target title">
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 placeholder="Software Engineer"
                 value={targetTitle}
                 onChange={(event) => setTargetTitle(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Job posting URL (optional)
+            </Field>
+            <Field label="Job posting URL (optional)">
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 placeholder="https://…"
                 value={jobUrl}
                 onChange={(event) => setJobUrl(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Pipeline status
+            </Field>
+            <Field label="Pipeline status">
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 value={roleStatus}
                 onChange={(event) => setRoleStatus(event.target.value)}
               >
@@ -167,11 +173,10 @@ export default function NewJobPage() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Provider
+            </Field>
+            <Field label="Provider">
               <select
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 value={provider}
                 onChange={(event) => setProvider(event.target.value)}
               >
@@ -181,86 +186,81 @@ export default function NewJobPage() {
                 <option value="glm">GLM</option>
                 <option value="deterministic">Offline only</option>
               </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Max bullets
+            </Field>
+            <Field label="Max bullets">
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 value={maxAchievements}
                 onChange={(event) => setMaxAchievements(event.target.value)}
               />
-            </label>
-            <label className="block text-sm font-medium">
-              Font (default from settings:{" "}
-              {settings.data?.default_font ?? "Calibri"})
+            </Field>
+            <Field
+              label="Font"
+              hint={`Default from settings: ${settings.data?.default_font ?? "Calibri"}`}
+            >
               <input
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                className={controlCls}
                 placeholder={settings.data?.default_font ?? "Calibri"}
                 value={font}
                 onChange={(event) => setFont(event.target.value)}
               />
-            </label>
+            </Field>
           </div>
-          <label className="block text-sm font-medium">
-            Summary override (optional)
+          <Field label="Summary override (optional)">
             <input
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+              className={controlCls}
               placeholder="Leave empty to use the reviewed profile summary"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
             />
-          </label>
-          <label className="block text-sm font-medium">
-            Job description
+          </Field>
+          <Field label="Job description">
             <textarea
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+              className={`${controlCls} font-mono text-[13px] leading-relaxed`}
               value={jdText}
               onChange={(event) => setJdText(event.target.value)}
               rows={12}
               placeholder="Paste the full job description here…"
               required
             />
-          </label>
+          </Field>
           {tailor.isError && (
-            <div
-              role="alert"
-              className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
-            >
-              <p className="font-semibold">Could not generate the plan</p>
-              <p className="mt-1">
-                {tailor.error instanceof Error
-                  ? tailor.error.message
-                  : String(tailor.error)}
-              </p>
-            </div>
+            <Alert role="alert" title="Could not generate the plan">
+              {tailor.error instanceof Error
+                ? tailor.error.message
+                : String(tailor.error)}
+            </Alert>
           )}
-          <button
+          <Button
             type="submit"
+            loading={tailor.isPending}
             disabled={!canSubmit}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {tailor.isPending ? "Tailoring…" : "Generate tailored plan"}
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
 
       {tailored && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6">
-          <h2 className="font-semibold text-emerald-800">Plan generated</h2>
+        <Card className="border-ok/40 p-6">
+          <h2 className="font-semibold text-ok">Plan generated</h2>
           {diff?.summary && (
-            <p className="mt-1 text-sm text-emerald-900">{diff.summary}</p>
+            <p className="mt-1 text-sm text-ink-2">{diff.summary}</p>
           )}
           {tailored.roleId != null && (
-            <p className="mt-1 text-sm text-emerald-900">
+            <p className="mt-1 text-sm text-ink-2">
               Recorded in your tracker —{" "}
-              <a href={`/roles/${tailored.roleId}`} className="underline">
+              <a
+                href={`/roles/${tailored.roleId}`}
+                className="text-accent underline"
+              >
                 view role
               </a>
               .
             </p>
           )}
           {Array.isArray(diff?.have) && diff!.have!.length > 0 && (
-            <p className="mt-1 text-sm text-emerald-900">
+            <p className="mt-1 text-sm text-ink-2">
               You have direct evidence for {diff!.have!.length} expected
               skill(s)
               {Array.isArray(diff?.inferred) &&
@@ -269,24 +269,21 @@ export default function NewJobPage() {
               .
             </p>
           )}
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => navigate("/review")}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-            >
+          <div className="mt-4 flex gap-2">
+            <Button onClick={() => navigate("/review")}>
               Review the AI plan →
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => {
                 tailor.reset();
                 setTailored(null);
               }}
-              className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
             >
               Tailor another
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
