@@ -14,6 +14,35 @@ resume-data → Typst v2 template → PDF. Deterministic end to end: no LLM
 is required; configured providers only *enhance* parsing, bullet
 selection, and rewriting — grounding checks always run.
 
+## Status (2026-11-01)
+
+The TypeScript cutover is complete: the original Python stack
+(`resume_god`, `master_profile.yaml`, Neo4j, the `uv` CLI) has been
+removed — Postgres is the only store and this monorepo is the only
+implementation.
+
+- **Server (NestJS, Bun):** Google OAuth auth, per-user tracker,
+  settings, knowledge-graph CRUD + review gate, LLM provider failover
+  (`gemini,glm,openai`), and the ported pipeline: jd-parser, tailor,
+  rewrite, resume-data, plus Typst PDF and .docx render routes.
+- **Web (React + Vite + Tailwind):** login, dashboard, companies/roles
+  tracker, interactive knowledge-graph editor (React Flow), review
+  gate, and settings — including provider reporting. Redesigned on
+  2026-11-01: light/dark theme system (no first-paint flash, self-hosted
+  Geist variable font), every page a lazy route chunk, nav prefetches
+  chunks on hover, vendor chunks cached separately. Initial JS dropped
+  from ~162 KB to ~101 KB gzipped; the React Flow canvas (~57 KB gz +
+  its CSS) loads only on `/graph`.
+- **Verification:** `bun run typecheck` clean; 75 server tests and 13
+  web tests passing. The `rg-test-pg` container (postgres:16-alpine,
+  `docker start rg-test-pg`) serves both purposes on **port 5433**:
+  tests use the `resume_god_test` database, and host-run dev
+  (`apps/server/.env`) points `DATABASE_URL` at `resume_god` on the
+  same container. Compose dev instead exposes Postgres on 5432.
+
+The `PHASE_*.md` files describe the retired Python implementation and
+are kept for design history only.
+
 The core safety rule: the system may only ever present facts that exist
 in your reviewed knowledge graph. Unknown skills are reported as gaps,
 never promoted into claims.

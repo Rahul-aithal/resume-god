@@ -1,3 +1,7 @@
+> **Historical design doc (pre-TypeScript cutover).** This describes the retired
+> Python implementation (`resume_god`, Neo4j, `master_profile.yaml`) removed in
+> commit cbd707f. Kept for design history — see README.md for current status.
+
 # Original Phase 5: Typst rendering and one-command CLI
 
 ## Status
