@@ -57,7 +57,11 @@ describe("real auth wiring", () => {
   });
 
   it("login without google config is 503 with setup hint", async () => {
-    const response = await fetch(`${base}/api/auth/login/google`);
+    // Manual redirect: when Google creds are present the route answers 302
+    // into the OAuth flow, and fetch would otherwise follow it to Google.
+    const response = await fetch(`${base}/api/auth/login/google`, {
+      redirect: "manual",
+    });
     if (process.env.GOOGLE_CLIENT_ID) {
       // Configured env: expect a redirect into the OAuth flow instead.
       expect(response.status).toBe(302);

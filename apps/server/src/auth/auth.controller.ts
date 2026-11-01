@@ -73,18 +73,28 @@ export class AuthController {
   @Public()
   @Get("login/google")
   @Redirect()
-  async loginGoogle(@Req() request: Request) {
+  async loginGoogle(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const google = this.google;
     if (!google.clientId || !google.clientSecret) {
       throw new ServiceUnavailableException(
         "Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
       );
     }
+    // returnHeaders: true is required: Better Auth returns the signed OAuth
+    // `state` cookie on result.headers. Dropping it made every callback fail
+    // with state_mismatch, because the state cookie never reached the browser.
     const result = await this.auth.api.signInSocial({
       body: { provider: "google", callbackURL: "/" },
       headers: fromNodeHeaders(request.headers),
+      returnHeaders: true,
     });
-    return { url: result.url ?? "/" };
+    for (const cookie of result.headers?.getSetCookie() ?? []) {
+      response.append("Set-Cookie", cookie);
+    }
+    return { url: result.response?.url ?? "/" };
   }
 
   @Public()
