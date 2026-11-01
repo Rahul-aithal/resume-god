@@ -1,24 +1,36 @@
 import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { currentTheme, toggleTheme } from "../lib/theme";
 import { AlertIcon, MoonIcon, SpinnerIcon, SunIcon } from "./icons";
+import {
+  Button as ShadcnButton,
+  buttonVariants as shadcnButtonVariants,
+} from "./ui/button";
+import { Card as ShadcnCard } from "./ui/card";
+import { Skeleton } from "./ui/skeleton";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { NativeSelect } from "./ui/native-select";
 
 /** Join conditional class names. */
 export function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
 
-/* ------------------------------------------------------------------ button */
+/* ------------------------------------------------------------------ button
+ * shadcn Button (Base UI) with our variant vocabulary on top:
+ *   primary → shadcn default (inverted near-black / white)
+ *   secondary → outline, ghost → ghost, danger → destructive            */
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-const buttonVariants: Record<ButtonVariant, string> = {
-  // Inverted primary — the Vercel/T3 signature: dark-on-light, light-on-dark.
-  primary:
-    "bg-btn-primary-bg text-btn-primary-ink hover:bg-btn-primary-bg-hover disabled:hover:bg-btn-primary-bg",
-  secondary: "border border-line-strong bg-surface text-ink hover:bg-surface-2",
-  ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
-  danger: "border border-danger/40 text-danger hover:bg-danger/10",
-};
+const variantMap = {
+  primary: "default",
+  secondary: "outline",
+  ghost: "ghost",
+  danger: "destructive",
+} as const;
+
+const sizeMap = { sm: "default", md: "lg" } as const;
 
 export function Button({
   variant = "primary",
@@ -35,22 +47,26 @@ export function Button({
   loading?: boolean;
 }) {
   return (
-    <button
+    <ShadcnButton
       type={type}
+      variant={variantMap[variant]}
+      size={sizeMap[size]}
       disabled={disabled || loading}
-      className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "h-8 px-2.5 text-[13px]" : "h-9 px-3.5 text-[13px]",
-        buttonVariants[variant],
-        className,
-      )}
-      {...rest}
+      className={className}
+      {...(rest as Record<string, unknown>)}
     >
-      {loading && <SpinnerIcon className="h-3.5 w-3.5" />}
+      {loading && <SpinnerIcon className="animate-spin" />}
       {children}
-    </button>
+    </ShadcnButton>
   );
 }
+
+/** Button-styled classes for elements that render as links. */
+export const buttonVariants = (variant: ButtonVariant = "primary") =>
+  shadcnButtonVariants({
+    variant: variantMap[variant],
+    size: "lg",
+  });
 
 /* -------------------------------------------------------------------- card */
 
@@ -62,20 +78,11 @@ export function Card({
   children: ReactNode;
 }) {
   return (
-    <section
-      className={cx("rounded-lg border border-line bg-surface", className)}
-    >
-      {children}
-    </section>
+    <ShadcnCard className={cx("rounded-lg", className)}>{children}</ShadcnCard>
   );
 }
 
 /* ------------------------------------------------------------------- field */
-
-export const controlCls =
-  "h-9 w-full rounded-md border border-line-strong bg-surface px-2.5 text-[13px] text-ink " +
-  "placeholder:text-ink-2/60 transition-colors focus:border-accent focus:outline-none " +
-  "focus:ring-2 focus:ring-accent/20 disabled:opacity-50";
 
 /** Label + control + optional hint. Wraps the control so the label names it
  * for assistive tech (and tests) without extra ids. */
@@ -213,9 +220,7 @@ export function Alert({
 
 /* --------------------------------------------------------------- skeletons */
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cx("skeleton", className)} aria-hidden />;
-}
+export { Skeleton };
 
 /** Suspense fallback for lazy route chunks. */
 export function PageSkeleton() {
@@ -309,3 +314,5 @@ export function ThemeToggle({ className }: { className?: string }) {
     </button>
   );
 }
+
+export { Input, Textarea, NativeSelect };

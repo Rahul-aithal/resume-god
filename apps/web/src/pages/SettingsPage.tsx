@@ -7,7 +7,7 @@ import {
   Field,
   PageHeader,
   Skeleton,
-  controlCls,
+  Input,
 } from "../components/ui";
 import { fetchProviders, fetchSettings, updateSettings } from "../lib/api";
 
@@ -94,38 +94,33 @@ export default function SettingsPage() {
             label="LLM order (comma-separated: gemini, glm, openai)"
             hint='"auto" tries these in order, skipping providers without keys.'
           >
-            <input
-              className={controlCls}
+            <Input
               value={llmOrder}
               onChange={(event) => setLlmOrder(event.target.value)}
               placeholder="gemini,glm,openai"
             />
           </Field>
           <Field label="Gemini model">
-            <input
-              className={controlCls}
+            <Input
               value={geminiModel}
               onChange={(event) => setGeminiModel(event.target.value)}
             />
           </Field>
           <Field label="GLM model">
-            <input
-              className={controlCls}
+            <Input
               value={glmModel}
               onChange={(event) => setGlmModel(event.target.value)}
             />
           </Field>
           <Field label="OpenAI model">
-            <input
-              className={controlCls}
+            <Input
               value={openaiModel}
               onChange={(event) => setOpenaiModel(event.target.value)}
               placeholder="gpt-4.1"
             />
           </Field>
           <Field label="Default resume font">
-            <input
-              className={controlCls}
+            <Input
               value={defaultFont}
               onChange={(event) => setDefaultFont(event.target.value)}
               placeholder="Calibri"

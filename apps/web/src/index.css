@@ -23,13 +23,11 @@
   --line: #e5e5e8;
   --line-strong: #d6d6db;
 
-  /* Inverted primary: dark button on light theme. */
-  --btn-primary-bg: #18181b;
-  --btn-primary-bg-hover: #2c2c31;
-  --btn-primary-ink: #ffffff;
-
   --accent: oklch(0.97 0 0);
-  --accent-strong: #085e55;
+
+  /* Brand teal — links, focus, active states. Chrome stays monochrome. */
+  --brand: #0c7a6e;
+  --brand-strong: #085e55;
 
   --ok: #1a7f4b;
   --review: #a16207;
@@ -50,12 +48,12 @@
   --kind-achievement: #d09a26;
   --kind-education: #a564e8;
   --kind-certification: #dc5f9d;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
@@ -64,8 +62,8 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: var(--line);
+  --input: var(--line-strong);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -94,13 +92,10 @@
   --line: #26262b;
   --line-strong: #38383f;
 
-  /* Inverted primary: light button on dark theme. */
-  --btn-primary-bg: #ededf0;
-  --btn-primary-bg-hover: #ffffff;
-  --btn-primary-ink: #101012;
-
   --accent: oklch(0.269 0 0);
-  --accent-strong: #63cbbd;
+
+  --brand: #3cb5a4;
+  --brand-strong: #63cbbd;
 
   --ok: #4dc78a;
   --review: #e0a33e;
@@ -119,12 +114,12 @@
   --kind-achievement: #e2b13e;
   --kind-education: #bd92f2;
   --kind-certification: #ef85ba;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
@@ -133,8 +128,8 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
+  --border: var(--line);
+  --input: var(--line-strong);
   --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
@@ -160,12 +155,10 @@
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
 
-  --color-btn-primary-bg: var(--btn-primary-bg);
-  --color-btn-primary-bg-hover: var(--btn-primary-bg-hover);
-  --color-btn-primary-ink: var(--btn-primary-ink);
-
   --color-accent: var(--accent);
-  --color-accent-strong: var(--accent-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
 
   --color-ok: var(--ok);
   --color-review: var(--review);
@@ -185,7 +178,9 @@
   --color-kind-education: var(--kind-education);
   --color-kind-certification: var(--kind-certification);
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans:
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -226,24 +221,9 @@
 }
 
 @theme {
-  --font-sans:
-    "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
-}
-
-@font-face {
-  font-family: "Geist";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/geist-variable-latin.woff2") format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
-    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
-    U+2215, U+FEFF, U+FFFD;
 }
 
 @layer base {

@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Alert,
+  buttonVariants,
   Button,
   Card,
   DotBadge,
   EmptyState,
   PageHeader,
-  controlCls,
+  Textarea,
 } from "../components/ui";
 import { postRender, postReview } from "../lib/api";
 import { getSessionPlan, setSessionPlan } from "../lib/session";
@@ -52,10 +53,7 @@ export default function ReviewPage() {
         <EmptyState
           title="No plan loaded"
           action={
-            <Link
-              to="/jobs/new"
-              className="inline-flex h-9 items-center rounded-md bg-btn-primary-bg px-3.5 text-[13px] font-medium text-btn-primary-ink transition-colors hover:bg-btn-primary-bg-hover"
-            >
+            <Link to="/jobs/new" className={buttonVariants("primary")}>
               + New application
             </Link>
           }
@@ -229,7 +227,7 @@ export default function ReviewPage() {
             <Card key={id} className="p-5">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="font-mono text-xs text-ink-2">{id}</h3>
-                <DotBadge color={entry.used_rewrite ? "accent" : "st-wishlist"}>
+                <DotBadge color={entry.used_rewrite ? "brand" : "st-wishlist"}>
                   {entry.used_rewrite ? "AI rewrite used" : "original"} (
                   {entry.status})
                 </DotBadge>
@@ -246,8 +244,8 @@ export default function ReviewPage() {
                 <div>
                   <label className="text-xs font-medium text-ink-2">
                     AI wording (edit to override)
-                    <textarea
-                      className={`${controlCls} mt-1.5 p-3 leading-relaxed`}
+                    <Textarea
+                      className="mt-1.5 p-3 leading-relaxed"
                       rows={3}
                       defaultValue={entry.rewritten_text}
                       onChange={(event) =>
@@ -297,8 +295,8 @@ export default function ReviewPage() {
       <Card className="p-5">
         <label className="block text-sm font-medium text-ink">
           Summary override (optional, applies to review + render)
-          <textarea
-            className={`${controlCls} mt-1.5`}
+          <Textarea
+            className="mt-1.5"
             rows={2}
             value={summary}
             onChange={(event) => setSummary(event.target.value)}

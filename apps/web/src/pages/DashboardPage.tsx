@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ROLE_STATUSES } from "@resume-god/api-client";
-import { Card, PageHeader, Skeleton, StatusBadge } from "../components/ui";
+import {
+  buttonVariants,
+  Card,
+  PageHeader,
+  Skeleton,
+  StatusBadge,
+} from "../components/ui";
 import { fetchDashboard } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -41,10 +47,7 @@ export default function DashboardPage() {
             : "Signed out — log in to see your pipeline."
         }
         actions={
-          <Link
-            to="/jobs/new"
-            className="inline-flex h-9 items-center rounded-md bg-btn-primary-bg px-3.5 text-[13px] font-medium text-btn-primary-ink transition-colors hover:bg-btn-primary-bg-hover"
-          >
+          <Link to="/jobs/new" className={buttonVariants("primary")}>
             + New application
           </Link>
         }
@@ -76,7 +79,7 @@ export default function DashboardPage() {
         {data.recent_roles.length === 0 ? (
           <p className="mt-2 text-[13px] text-ink-2">
             No roles yet —{" "}
-            <Link to="/jobs/new" className="text-accent hover:underline">
+            <Link to="/jobs/new" className="text-brand hover:underline">
               tailor your first application
             </Link>
             .
@@ -100,7 +103,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-2.5">
                       <Link
                         to={`/companies/${role.company_id}`}
-                        className="font-medium hover:text-accent hover:underline"
+                        className="font-medium hover:text-brand hover:underline"
                       >
                         {role.company_name}
                       </Link>
@@ -108,7 +111,7 @@ export default function DashboardPage() {
                     <td className="px-4 py-2.5 text-ink-2">
                       <Link
                         to={`/roles/${role.id}`}
-                        className="hover:text-accent hover:underline"
+                        className="hover:text-brand hover:underline"
                       >
                         {role.target_title}
                       </Link>

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { LogoMark } from "../components/icons";
-import { Alert, Button, Card, cx, controlCls } from "../components/ui";
+import { Alert, Button, Card, cx } from "../components/ui";
 import { fetchAuthProviders } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -138,9 +138,7 @@ export default function LoginPage() {
             including the port.
           </p>
           <div className="mt-3 flex items-start gap-2">
-            <code
-              className={`${controlCls} min-w-0 flex-1 break-all font-mono text-xs`}
-            >
+            <code className="min-w-0 flex-1 rounded-md border border-line bg-surface-2 px-3 py-2 font-mono text-xs break-all">
               {redirectUri}
             </code>
             <Button

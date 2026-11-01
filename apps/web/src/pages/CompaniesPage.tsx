@@ -8,7 +8,8 @@ import {
   EmptyState,
   PageHeader,
   Skeleton,
-  controlCls,
+  Input,
+  Textarea,
 } from "../components/ui";
 import { createCompany, fetchCompanies } from "../lib/api";
 
@@ -64,12 +65,12 @@ export default function CompaniesPage() {
               <ul className="space-y-2.5">
                 {companies.data.companies.map((company) => (
                   <li key={company.id}>
-                    <Card className="p-4 transition-colors hover:border-accent/40">
+                    <Card className="p-4 transition-colors hover:border-brand/40">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <Link
                             to={`/companies/${company.id}`}
-                            className="font-semibold text-accent hover:underline"
+                            className="font-semibold text-brand hover:underline"
                           >
                             {company.name}
                           </Link>
@@ -83,7 +84,7 @@ export default function CompaniesPage() {
                               href={company.website}
                               target="_blank"
                               rel="noreferrer"
-                              className="ml-2 text-sm text-accent hover:underline"
+                              className="ml-2 text-sm text-brand hover:underline"
                             >
                               website
                             </a>
@@ -115,27 +116,23 @@ export default function CompaniesPage() {
               if (name.trim()) create.mutate();
             }}
           >
-            <input
-              className={controlCls}
+            <Input
               placeholder="Company name (e.g. Goodspace)"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
-            <input
-              className={controlCls}
+            <Input
               placeholder="Website"
               value={website}
               onChange={(event) => setWebsite(event.target.value)}
             />
-            <input
-              className={controlCls}
+            <Input
               placeholder="Location"
               value={location}
               onChange={(event) => setLocation(event.target.value)}
             />
-            <textarea
-              className={controlCls}
+            <Textarea
               placeholder="All data about the company…"
               rows={4}
               value={about}

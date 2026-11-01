@@ -8,7 +8,9 @@ import {
   Card,
   Field,
   PageHeader,
-  controlCls,
+  Input,
+  Textarea,
+  NativeSelect,
 } from "../components/ui";
 import {
   createCompany as createCompanyApi,
@@ -117,8 +119,8 @@ export default function NewJobPage() {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Company">
-              <select
-                className={controlCls}
+              <NativeSelect
+                className="w-full"
                 value={companyId}
                 onChange={(event) => setCompanyId(event.target.value)}
                 required
@@ -132,12 +134,11 @@ export default function NewJobPage() {
                   </option>
                 ))}
                 <option value="__new__">+ New company…</option>
-              </select>
+              </NativeSelect>
             </Field>
             {companyId === "__new__" && (
               <Field label="New company name">
-                <input
-                  className={controlCls}
+                <Input
                   placeholder="e.g. Goodspace"
                   value={newCompanyName}
                   onChange={(event) => setNewCompanyName(event.target.value)}
@@ -146,24 +147,22 @@ export default function NewJobPage() {
               </Field>
             )}
             <Field label="Target title">
-              <input
-                className={controlCls}
+              <Input
                 placeholder="Software Engineer"
                 value={targetTitle}
                 onChange={(event) => setTargetTitle(event.target.value)}
               />
             </Field>
             <Field label="Job posting URL (optional)">
-              <input
-                className={controlCls}
+              <Input
                 placeholder="https://…"
                 value={jobUrl}
                 onChange={(event) => setJobUrl(event.target.value)}
               />
             </Field>
             <Field label="Pipeline status">
-              <select
-                className={controlCls}
+              <NativeSelect
+                className="w-full"
                 value={roleStatus}
                 onChange={(event) => setRoleStatus(event.target.value)}
               >
@@ -172,11 +171,11 @@ export default function NewJobPage() {
                     {status}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="Provider">
-              <select
-                className={controlCls}
+              <NativeSelect
+                className="w-full"
                 value={provider}
                 onChange={(event) => setProvider(event.target.value)}
               >
@@ -185,11 +184,10 @@ export default function NewJobPage() {
                 <option value="gemini">Gemini</option>
                 <option value="glm">GLM</option>
                 <option value="deterministic">Offline only</option>
-              </select>
+              </NativeSelect>
             </Field>
             <Field label="Max bullets">
-              <input
-                className={controlCls}
+              <Input
                 value={maxAchievements}
                 onChange={(event) => setMaxAchievements(event.target.value)}
               />
@@ -198,8 +196,7 @@ export default function NewJobPage() {
               label="Font"
               hint={`Default from settings: ${settings.data?.default_font ?? "Calibri"}`}
             >
-              <input
-                className={controlCls}
+              <Input
                 placeholder={settings.data?.default_font ?? "Calibri"}
                 value={font}
                 onChange={(event) => setFont(event.target.value)}
@@ -207,16 +204,15 @@ export default function NewJobPage() {
             </Field>
           </div>
           <Field label="Summary override (optional)">
-            <input
-              className={controlCls}
+            <Input
               placeholder="Leave empty to use the reviewed profile summary"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
             />
           </Field>
           <Field label="Job description">
-            <textarea
-              className={`${controlCls} font-mono text-[13px] leading-relaxed`}
+            <Textarea
+              className="font-mono text-[13px] leading-relaxed"
               value={jdText}
               onChange={(event) => setJdText(event.target.value)}
               rows={12}
@@ -252,7 +248,7 @@ export default function NewJobPage() {
               Recorded in your tracker —{" "}
               <a
                 href={`/roles/${tailored.roleId}`}
-                className="text-accent underline"
+                className="text-brand underline"
               >
                 view role
               </a>

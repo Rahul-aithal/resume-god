@@ -5,11 +5,13 @@ import { ROLE_STATUSES } from "@resume-god/api-client";
 import RoleStatusEditor from "../components/RoleStatusEditor";
 import {
   Alert,
+  buttonVariants,
   Button,
   Card,
+  Input,
+  NativeSelect,
   Skeleton,
   StatusBadge,
-  controlCls,
 } from "../components/ui";
 import { createRole, fetchCompany } from "../lib/api";
 
@@ -44,7 +46,7 @@ export default function CompanyDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-ink-2">
-        <Link to="/companies" className="hover:text-accent hover:underline">
+        <Link to="/companies" className="hover:text-brand hover:underline">
           Companies
         </Link>
         <span aria-hidden>/</span>
@@ -66,7 +68,7 @@ export default function CompanyDetailPage() {
                     href={data.website}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-accent hover:underline"
+                    className="text-brand hover:underline"
                   >
                     {data.website}
                   </a>
@@ -77,7 +79,7 @@ export default function CompanyDetailPage() {
           <div className="flex gap-2">
             <Link
               to={`/jobs/new?companyId=${data.id}`}
-              className="inline-flex h-9 items-center rounded-md bg-btn-primary-bg px-3.5 text-[13px] font-medium text-btn-primary-ink transition-colors hover:bg-btn-primary-bg-hover"
+              className={buttonVariants("primary")}
             >
               + Tailor for this company
             </Link>
@@ -127,7 +129,7 @@ export default function CompanyDetailPage() {
                   <td className="py-2.5">
                     <Link
                       to={`/roles/${role.id}`}
-                      className="font-medium hover:text-accent hover:underline"
+                      className="font-medium hover:text-brand hover:underline"
                     >
                       {role.target_title}
                     </Link>
@@ -136,7 +138,7 @@ export default function CompanyDetailPage() {
                         href={role.job_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-2 text-xs text-accent hover:underline"
+                        className="ml-2 text-xs text-brand hover:underline"
                       >
                         posting
                       </a>
@@ -200,15 +202,14 @@ function AddRoleForm({
         }}
       >
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
-          <input
-            className={controlCls}
+          <Input
             placeholder="Target title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             required
           />
-          <select
-            className={controlCls}
+          <NativeSelect
+            className="w-full"
             value={status}
             onChange={(event) => setStatus(event.target.value)}
           >
@@ -217,9 +218,8 @@ function AddRoleForm({
                 {status_}
               </option>
             ))}
-          </select>
-          <input
-            className={controlCls}
+          </NativeSelect>
+          <Input
             placeholder="Job posting URL (optional)"
             value={jobUrl}
             onChange={(event) => setJobUrl(event.target.value)}

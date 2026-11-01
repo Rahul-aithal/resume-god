@@ -16,7 +16,6 @@
     "noEmit": true,
     "noEmitOnError": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

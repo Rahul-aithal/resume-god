@@ -1,7 +1,7 @@
 import { lazy, type ComponentType } from "react";
 import { Link, Route, Routes } from "react-router-dom";
 import AppShell, { type LazyPage } from "./components/AppShell";
-import { EmptyState } from "./components/ui";
+import { buttonVariants, EmptyState } from "./components/ui";
 import { AuthProvider, RequireAuth } from "./lib/auth";
 
 /** Route-level code splitting: every page is its own chunk, fetched on
@@ -25,10 +25,7 @@ function NotFound() {
     <EmptyState
       title="Page not found"
       action={
-        <Link
-          to="/"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:bg-accent-strong"
-        >
+        <Link to="/" className={buttonVariants("primary")}>
           Back to dashboard
         </Link>
       }

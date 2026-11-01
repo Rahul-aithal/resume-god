@@ -32,13 +32,13 @@ export default function RoleDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-ink-2">
-        <Link to="/companies" className="hover:text-accent hover:underline">
+        <Link to="/companies" className="hover:text-brand hover:underline">
           Companies
         </Link>
         <span aria-hidden>/</span>
         <Link
           to={`/companies/${role.company_id}`}
-          className="hover:text-accent hover:underline"
+          className="hover:text-brand hover:underline"
         >
           {role.company_name ?? "Company"}
         </Link>
@@ -70,7 +70,7 @@ export default function RoleDetailPage() {
             href={role.job_url}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-block text-sm text-accent hover:underline"
+            className="mt-3 inline-block text-sm text-brand hover:underline"
           >
             Job posting ↗
           </a>
@@ -102,7 +102,7 @@ export default function RoleDetailPage() {
                 <span
                   aria-hidden
                   className={`absolute left-[5px] h-2 w-2 rounded-full ${
-                    index === 0 ? "bg-accent" : "bg-line-strong"
+                    index === 0 ? "bg-brand" : "bg-line-strong"
                   }`}
                 />
                 {index < entries.length - 1 && (

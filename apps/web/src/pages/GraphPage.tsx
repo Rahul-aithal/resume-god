@@ -25,7 +25,9 @@ import {
   DotBadge,
   Field,
   KindBadge,
-  controlCls,
+  Input,
+  Textarea,
+  NativeSelect,
 } from "../components/ui";
 import {
   deleteGraphAchievement,
@@ -427,8 +429,7 @@ export default function GraphPage() {
                 </code>
               </div>
               <Field label="Label">
-                <input
-                  className={controlCls}
+                <Input
                   value={editLabel}
                   onChange={(event) => setEditLabel(event.target.value)}
                 />
@@ -437,8 +438,7 @@ export default function GraphPage() {
                 selected.kind === "experience" ||
                 selected.kind === "project") && (
                 <Field label={selected.kind === "skill" ? "Category" : "Title"}>
-                  <input
-                    className={controlCls}
+                  <Input
                     value={editDetail}
                     onChange={(event) => setEditDetail(event.target.value)}
                   />
@@ -446,8 +446,7 @@ export default function GraphPage() {
               )}
               {selected.kind === "skill" && (
                 <Field label="Aliases (comma-separated)">
-                  <input
-                    className={controlCls}
+                  <Input
                     value={editAliases}
                     onChange={(event) => setEditAliases(event.target.value)}
                     placeholder="JS, Javascript"
@@ -457,16 +456,15 @@ export default function GraphPage() {
               {selected.kind === "achievement" && (
                 <>
                   <Field label="Skills (comma-separated names)">
-                    <input
-                      className={controlCls}
+                    <Input
                       value={editSkills}
                       onChange={(event) => setEditSkills(event.target.value)}
                       placeholder="TypeScript, React.js"
                     />
                   </Field>
                   <Field label="Metrics (one per line)">
-                    <textarea
-                      className={`${controlCls} font-mono text-xs`}
+                    <Textarea
+                      className="font-mono text-xs"
                       rows={3}
                       value={editMetrics}
                       onChange={(event) => setEditMetrics(event.target.value)}
@@ -517,8 +515,8 @@ export default function GraphPage() {
           <Card className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Import</h2>
             <div className="flex gap-2 text-sm">
-              <select
-                className={`${controlCls} w-auto px-2 py-1.5`}
+              <NativeSelect
+                className="w-auto px-2 py-1.5"
                 value={importFormat}
                 onChange={(event) =>
                   setImportFormat(event.target.value as "yaml" | "json")
@@ -526,9 +524,9 @@ export default function GraphPage() {
               >
                 <option value="yaml">YAML</option>
                 <option value="json">JSON</option>
-              </select>
-              <select
-                className={`${controlCls} w-auto px-2 py-1.5`}
+              </NativeSelect>
+              <NativeSelect
+                className="w-auto px-2 py-1.5"
                 value={importMode}
                 onChange={(event) =>
                   setImportMode(event.target.value as "replace" | "merge")
@@ -536,10 +534,10 @@ export default function GraphPage() {
               >
                 <option value="replace">Replace</option>
                 <option value="merge">Merge</option>
-              </select>
+              </NativeSelect>
             </div>
-            <textarea
-              className={`${controlCls} h-32 p-2 font-mono text-xs`}
+            <Textarea
+              className="h-32 p-2 font-mono text-xs"
               placeholder="Paste a profile document (skills, experiences, projects, achievements…)"
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
