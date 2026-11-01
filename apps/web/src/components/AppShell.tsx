@@ -1,4 +1,5 @@
 import {
+  lazy,
   Suspense,
   useEffect,
   useLayoutEffect,
@@ -7,22 +8,21 @@ import {
   type ComponentType,
 } from "react";
 import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useAuth, useLogout } from "../lib/auth";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useAuth } from "../lib/auth";
 import { useIsDesktop } from "../lib/use-is-desktop";
 import {
   CompaniesIcon,
   DashboardIcon,
   GraphIcon,
   LogoMark,
-  LogoutIcon,
   NavCloseIcon,
   NavOpenIcon,
   NewJobIcon,
   ReviewIcon,
   SettingsIcon,
 } from "./icons";
-import { Button, PageSkeleton, ThemeToggle, cx } from "./ui";
+import { Button, PageSkeleton, Skeleton, ThemeToggle, cx } from "./ui";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -63,28 +63,38 @@ function Wordmark() {
   );
 }
 
-function UserBlock() {
-  const logout = useLogout();
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return null;
+const ProfileMenu = lazy(() => import("./ProfileMenu"));
+
+/** Profile button for signed-in users, or a way in for everyone else. */
+function AccountSlot({
+  compact,
+  side,
+}: {
+  compact?: boolean;
+  side?: "top" | "bottom" | "right";
+}) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const placeholder = (
+    <Skeleton className={compact ? "size-8 rounded-full" : "h-11"} />
+  );
+  if (isLoading) return placeholder;
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <NavLink
+          to="/login"
+          className="rounded-md px-2 py-1.5 text-[13px] font-medium text-ink-2 hover:bg-surface-2 hover:text-ink"
+        >
+          Log in
+        </NavLink>
+        <ThemeToggle />
+      </div>
+    );
+  }
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
-      <span className="min-w-0 flex-1 truncate text-xs text-ink-2">
-        Signed in
-      </span>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          void logout().then(() => navigate("/login"));
-        }}
-        className="px-2"
-      >
-        <LogoutIcon className="h-4 w-4" />
-        Log out
-      </Button>
-    </div>
+    <Suspense fallback={placeholder}>
+      <ProfileMenu compact={compact} side={side} />
+    </Suspense>
   );
 }
 
@@ -211,12 +221,8 @@ export default function AppShell({
               <Wordmark />
             </div>
             <NavLinks items={items} layout="col" />
-            <div className="mt-auto flex flex-col gap-3">
-              <div className="flex items-center justify-between border-t border-line pt-3">
-                <span className="px-1.5 text-xs text-ink-2">Theme</span>
-                <ThemeToggle />
-              </div>
-              <UserBlock />
+            <div className="mt-auto border-t border-line pt-3">
+              <AccountSlot />
             </div>
           </aside>
         </ResizablePanel>
@@ -241,12 +247,18 @@ export default function AppShell({
                 <NavOpenIcon className="size-4" />
               )}
             </Button>
+            {isDesktop && !navOpen && (
+              // The profile stays reachable while the sidebar is closed.
+              <div className="absolute bottom-2 left-1.5 z-10">
+                <AccountSlot compact side="right" />
+              </div>
+            )}
             <div ref={scroller} className="h-full overflow-y-auto">
               {/* Mobile top bar */}
               <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur lg:hidden">
                 <div className="flex items-center justify-between px-4 pt-3 pb-2">
                   <Wordmark />
-                  <ThemeToggle />
+                  {!isDesktop && <AccountSlot compact side="bottom" />}
                 </div>
                 <div className="overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <NavLinks items={items} layout="row" />

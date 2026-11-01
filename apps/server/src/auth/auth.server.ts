@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { multiSession } from "better-auth/plugins";
 
 import type { AppDb } from "../db/client";
 import {
@@ -63,6 +64,8 @@ export function createAuth(db: AppDb, options: AuthOptions) {
         verification: authVerification,
       },
     }),
+    // Several accounts signed in on one browser, for the account switcher.
+    plugins: [multiSession()],
     socialProviders: options.google.clientId
       ? {
           google: {

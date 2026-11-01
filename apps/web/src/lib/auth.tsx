@@ -8,15 +8,18 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { MeInfo } from "@resume-god/api-client";
 import { fetchMe, logout as apiLogout } from "./api";
 
 interface AuthValue {
+  user: MeInfo | null;
   userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthValue>({
+  user: null,
   userId: null,
   isLoading: true,
   isAuthenticated: false,
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   const value: AuthValue = {
+    user: me.data ?? null,
     userId: me.data?.id ?? null,
     isLoading: me.isPending,
     isAuthenticated: me.data != null && !expired,

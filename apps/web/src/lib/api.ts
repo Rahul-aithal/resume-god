@@ -3,6 +3,7 @@ import type {
   ApplicationHistoryEntry,
   AuthProvidersInfo,
   Company,
+  DeviceAccount,
   CompanyDetail,
   CompanyInput,
   DashboardSummary,
@@ -96,6 +97,17 @@ export function fetchAuthProviders(): Promise<AuthProvidersInfo> {
 
 export async function logout(): Promise<void> {
   await fetch(`${API_PREFIX}/auth/logout`, { method: "POST" });
+}
+
+export function fetchAccounts(): Promise<{ accounts: DeviceAccount[] }> {
+  return request<{ accounts: DeviceAccount[] }>("/auth/accounts");
+}
+
+export function switchAccount(userId: string): Promise<{ status: string }> {
+  return request<{ status: string }>("/auth/accounts/switch", {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  });
 }
 
 export function postTailor(input: TailorInput): Promise<TailorResponse> {

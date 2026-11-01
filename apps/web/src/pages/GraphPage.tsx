@@ -1,27 +1,17 @@
-import {
-  Background,
-  ControlButton,
-  Controls,
-  type Edge,
-  type Node,
-  ReactFlow,
-  useEdgesState,
-  useNodesInitialized,
-  useNodesState,
-  useReactFlow,
-  useStore,
-} from "@xyflow/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import "@xyflow/react/dist/style.css";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-import type {
-  GraphEdgeType,
-  GraphNode as GraphNodeData,
-  GraphProjection,
-} from "@resume-god/api-client";
+import type { GraphNode as GraphNodeData } from "@resume-god/api-client";
+import type { NodePositions } from "../components/GraphCanvas";
 import GraphTable from "../components/GraphTable";
-import { CollapseIcon, ExpandIcon, FitViewIcon } from "../components/icons";
+import { ExpandIcon } from "../components/icons";
 import SidePanelLayout from "../components/SidePanelLayout";
 import { SelectField } from "../components/SelectField";
 import {
@@ -65,62 +55,10 @@ import {
   updateGraphSkill,
 } from "../lib/api";
 import GraphAddForm from "../components/GraphAddForm";
+import { GRAPH_KINDS } from "../lib/graph-kinds";
 
-const KINDS = [
-  "skill",
-  "experience",
-  "project",
-  "achievement",
-  "education",
-  "certification",
-] as const;
-
-/** Node and edge colors read the theme's CSS variables, so the canvas
- * follows light/dark without re-rendering the graph. */
-const kindColor = (kind: string) => `var(--kind-${kind}, var(--st-wishlist))`;
-
-const EDGE_COLOR: Record<GraphEdgeType, string> = {
-  USES: "var(--kind-experience)",
-  PART_OF: "var(--line-strong)",
-  DEMONSTRATES: "var(--kind-achievement)",
-  IMPLIES: "var(--kind-skill)",
-};
-
-function toFlowData(projection: GraphProjection): {
-  nodes: Node[];
-  edges: Edge[];
-} {
-  const counts = new Map<string, number>();
-  const grid = (kind: string) => {
-    counts.set(kind, (counts.get(kind) ?? 0) + 1);
-    const column = KINDS.indexOf(kind as (typeof KINDS)[number]);
-    return { x: column * 280, y: (counts.get(kind)! - 1) * 90 };
-  };
-  const nodes: Node[] = projection.nodes.map((node: GraphNodeData) => ({
-    id: node.id,
-    position: grid(node.kind),
-    data: { label: node.label, kind: node.kind, detail: node.detail },
-    style: {
-      background: "var(--surface)",
-      color: "var(--ink)",
-      border: `2px solid ${kindColor(node.kind)}`,
-      borderRadius: 10,
-      padding: 6,
-      fontSize: 11,
-      width: 240,
-    },
-  }));
-  const edges: Edge[] = projection.edges.map((edge, index) => ({
-    id: `e-${index}`,
-    source: edge.from,
-    target: edge.to,
-    label: edge.type,
-    style: { stroke: EDGE_COLOR[edge.type], strokeWidth: 1.5 },
-    labelStyle: { fontSize: 9, fill: "var(--ink-2)" },
-    labelBgStyle: { fill: "var(--surface)" },
-  }));
-  return { nodes, edges };
-}
+const loadCanvas = () => import("../components/GraphCanvas");
+const GraphCanvas = lazy(loadCanvas);
 
 const IMPORT_PLACEHOLDER =
   "Paste a profile document (skills, experiences, projects, achievements…)";
@@ -150,8 +88,9 @@ export default function GraphPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [sampleLoading, setSampleLoading] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [view, setView] = useState<"graph" | "table">("graph");
+  const [view, setView] = useState<"graph" | "table">("table");
   const canvasRef = useRef<HTMLDivElement>(null);
+  const nodePositions = useRef<NodePositions>(new Map());
   // "css" is the fallback where the browser refuses real fullscreen, such as
   // inside an embedded preview. It fills the window instead.
   const [fullscreen, setFullscreen] = useState<"off" | "native" | "css">("off");
@@ -204,29 +143,9 @@ export default function GraphPage() {
   }
 
   const projection = graph.data ?? null;
-  const flow = useMemo(
-    () => (projection ? toFlowData(projection) : { nodes: [], edges: [] }),
-    [projection],
-  );
-  const [nodes, setNodes, onNodesChange] = useNodesState(flow.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(flow.edges);
-
-  // Re-sync local flow state whenever the projection refetches.
-  const flowKey = JSON.stringify(projection?.stats ?? null);
-  const [lastFlowKey, setLastFlowKey] = useState("");
-  if (flowKey !== lastFlowKey) {
-    setLastFlowKey(flowKey);
-    setNodes(flow.nodes);
-    setEdges(flow.edges);
-  }
-
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["graph"] });
   }, [queryClient]);
-
-  // `fitView` only applies at init and needs measured nodes; FitOnLoad below
-  // refits once per graph state. Drags and label edits don't change the
-  // stats key, so they never reset the user's view.
 
   const onError = useCallback((error: unknown) => {
     setActionError(error instanceof Error ? error.message : String(error));
@@ -568,8 +487,14 @@ export default function GraphPage() {
           reveal={selected?.id}
           toolbar={
             <TabsList>
-              <TabsTrigger value="graph">Graph</TabsTrigger>
               <TabsTrigger value="table">Table</TabsTrigger>
+              <TabsTrigger
+                value="graph"
+                onMouseEnter={() => void loadCanvas()}
+                onFocus={() => void loadCanvas()}
+              >
+                Graph
+              </TabsTrigger>
             </TabsList>
           }
           side={
@@ -580,7 +505,7 @@ export default function GraphPage() {
                 <Card className="space-y-3 p-4 text-sm text-ink-2">
                   <p>Click a node or table row to view and edit it.</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {KINDS.map((kind) => (
+                    {GRAPH_KINDS.map((kind) => (
                       <DotBadge key={kind} color={`kind-${kind}`}>
                         {kind}
                       </DotBadge>
@@ -723,35 +648,19 @@ export default function GraphPage() {
                     Failed to load graph: {String(graph.error)}
                   </Alert>
                 ) : (
-                  <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onNodeClick={(_, node) => {
-                      const data = node.data as {
-                        label: string;
-                        kind: GraphNodeData["kind"];
-                        detail: string;
-                      };
-                      openInspector({ id: node.id, ...data });
-                    }}
-                    fitView
-                    // The default of 0.5 can't fit a full graph on screen.
-                    minZoom={0.05}
-                    proOptions={{ hideAttribution: true }}
+                  <Suspense
+                    fallback={
+                      <p className="p-6 text-sm text-ink-2">Loading graph…</p>
+                    }
                   >
-                    <Background
-                      gap={18}
-                      bgColor="var(--surface)"
-                      color="var(--line)"
-                    />
-                    <CanvasControls
+                    <GraphCanvas
+                      projection={projection!}
+                      positions={nodePositions}
+                      onOpenNode={openInspector}
                       fullscreen={fullscreen !== "off"}
                       onToggleFullscreen={() => void toggleFullscreen()}
                     />
-                    <FitOnLoad flowKey={flowKey} />
-                  </ReactFlow>
+                  </Suspense>
                 )}
               </Card>
               {fullscreen !== "off" && selected && (
@@ -765,6 +674,7 @@ export default function GraphPage() {
           <TabsContent
             value="table"
             // Kept mounted so filters and the page survive switching tabs.
+            // The graph tab isn't: its canvas loads and mounts only when open.
             keepMounted
             className="h-[540px] lg:h-full"
           >
@@ -785,69 +695,5 @@ export default function GraphPage() {
         </SidePanelLayout>
       </Tabs>
     </div>
-  );
-}
-
-/** Refits the canvas once per graph state, after nodes have measurable
- * dimensions — the declarative `fitView` prop can run before that. */
-function FitOnLoad({ flowKey }: { flowKey: string }) {
-  const initialized = useNodesInitialized();
-  const { fitView } = useReactFlow();
-  const fittedKey = useRef("");
-  useEffect(() => {
-    if (!initialized || fittedKey.current === flowKey) return;
-    fittedKey.current = flowKey;
-    void fitView({ padding: 0.15, duration: 250 });
-  }, [initialized, flowKey, fitView]);
-  return null;
-}
-
-/** Zoom, fit, and fullscreen. React Flow's own fit button uses a fullscreen-
- * style icon, so it's replaced to keep the two from being mistaken. */
-function CanvasControls({
-  fullscreen,
-  onToggleFullscreen,
-}: {
-  fullscreen: boolean;
-  onToggleFullscreen: () => void;
-}) {
-  const { fitView } = useReactFlow();
-  const width = useStore((state) => state.width);
-  const height = useStore((state) => state.height);
-  const previous = useRef({ width, height });
-
-  // Refit when the canvas changes size: fullscreen, or a panel closed or
-  // dragged. Debounced so a drag only refits once it settles.
-  useEffect(() => {
-    if (previous.current.width === width && previous.current.height === height)
-      return;
-    const firstMeasure = previous.current.width === 0;
-    previous.current = { width, height };
-    if (firstMeasure) return;
-    const timer = setTimeout(
-      () => void fitView({ padding: 0.15, duration: 250 }),
-      150,
-    );
-    return () => clearTimeout(timer);
-  }, [width, height, fitView]);
-
-  const fullscreenLabel = fullscreen ? "Exit fullscreen" : "Enter fullscreen";
-  return (
-    <Controls showInteractive={false} showFitView={false}>
-      <ControlButton
-        title="Fit graph to view"
-        aria-label="Fit graph to view"
-        onClick={() => void fitView({ padding: 0.15, duration: 250 })}
-      >
-        <FitViewIcon />
-      </ControlButton>
-      <ControlButton
-        title={fullscreenLabel}
-        aria-label={fullscreenLabel}
-        onClick={onToggleFullscreen}
-      >
-        {fullscreen ? <CollapseIcon /> : <ExpandIcon />}
-      </ControlButton>
-    </Controls>
   );
 }

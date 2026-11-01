@@ -1,6 +1,12 @@
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -11,6 +17,7 @@ vi.mock("./lib/api", async (importOriginal) => {
   return {
     ...original,
     fetchMe: vi.fn(),
+    fetchAccounts: vi.fn(),
     fetchDashboard: vi.fn(),
     logout: vi.fn(),
   };
@@ -74,11 +81,32 @@ describe("App", () => {
       recent_roles: [],
       recent_artifacts: [],
     });
+    vi.mocked(api.fetchAccounts).mockResolvedValue({
+      accounts: [
+        {
+          id: "user-1",
+          email: "tester@example.com",
+          display_name: "Tester",
+          active: true,
+        },
+      ],
+    });
     renderApp("/");
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Dashboard" })).toBeDefined();
     });
-    expect(screen.getByText("Log out")).toBeDefined();
+    // The profile menu loads lazily, then offers switching and log out.
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Account menu for Tester",
+      }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Log out" }),
+    ).toBeDefined();
+    expect(
+      await screen.findByRole("menuitem", { name: /Tester/ }),
+    ).toBeDefined();
     expect(
       screen.getAllByRole("link", { name: "Companies" }).length,
     ).toBeGreaterThan(0);

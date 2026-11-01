@@ -10,6 +10,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUpDown,
+  UserPlus,
   Copy,
   Download,
   ExternalLink,
@@ -160,6 +161,14 @@ export function SortDescIcon(props: IconProps) {
 
 export function SortNoneIcon(props: IconProps) {
   return <ChevronsUpDown aria-hidden {...props} />;
+}
+
+export function UpDownIcon(props: IconProps) {
+  return <ChevronsUpDown aria-hidden {...props} />;
+}
+
+export function AddAccountIcon(props: IconProps) {
+  return <UserPlus aria-hidden {...props} />;
 }
 
 export function ChevronLeftIcon(props: IconProps) {

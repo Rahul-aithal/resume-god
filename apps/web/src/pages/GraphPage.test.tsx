@@ -91,13 +91,17 @@ describe("GraphPage", () => {
       aliases: ["TS", "Type Script"],
     });
     renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
     await waitFor(() => {
-      expect(screen.getAllByText("TypeScript").length).toBeGreaterThan(0);
+      expect(
+        screen
+          .getAllByText("TypeScript")
+          .some((element) => element.closest(".react-flow__node")),
+      ).toBe(true);
     });
     const node = screen
       .getAllByText("TypeScript")
       .find((element) => element.closest(".react-flow__node"));
-    expect(node).toBeDefined();
     fireEvent.click(node!);
     await waitFor(() => {
       expect(screen.getByPlaceholderText("JS, Javascript")).toBeDefined();
@@ -151,7 +155,6 @@ describe("GraphPage", () => {
     });
     renderPage();
     await screen.findByText(/1 skills/);
-    fireEvent.click(screen.getByRole("tab", { name: "Table" }));
     const search = await screen.findByRole("textbox", {
       name: "Search the graph",
     });
@@ -167,8 +170,26 @@ describe("GraphPage", () => {
     });
   });
 
+  it("opens on the table and loads the graph only when asked", async () => {
+    renderPage();
+    await screen.findByText(/1 skills/);
+    expect(
+      screen.getByRole("tab", { name: "Table" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(document.querySelector(".react-flow")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Graph" }));
+    await waitFor(() => {
+      expect(document.querySelector(".react-flow")).not.toBeNull();
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Table" }));
+    await waitFor(() => {
+      expect(document.querySelector(".react-flow")).toBeNull();
+    });
+  });
+
   it("toggles fullscreen, filling the window if the browser refuses", async () => {
     renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Enter fullscreen" }),
     );

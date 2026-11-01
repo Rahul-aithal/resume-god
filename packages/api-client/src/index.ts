@@ -129,6 +129,14 @@ export interface MeInfo {
   display_name: string;
 }
 
+/** An account signed in on this browser. */
+export interface DeviceAccount {
+  id: string;
+  email: string;
+  display_name: string;
+  active: boolean;
+}
+
 /** OAuth setup state reported by GET /api/auth/providers. */
 export interface AuthProviderInfo {
   configured: boolean;

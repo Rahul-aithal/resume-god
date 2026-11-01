@@ -3,7 +3,9 @@ import {
   Body,
   Controller,
   Get,
+  NotFoundException,
   Post,
+  Query,
   Redirect,
   Req,
   Res,
@@ -13,10 +15,15 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import { fromNodeHeaders } from "better-auth/node";
+import { z } from "zod";
 
 import { firstNonEmpty, stripTrailingSlashes } from "../config/env-utils";
 import { AuthHandle } from "./auth.server";
 import { Public } from "./session.guard";
+
+const switchAccountSchema = z.strictObject({
+  user_id: z.string().min(1),
+});
 
 /**
  * Auth surface:
@@ -25,6 +32,8 @@ import { Public } from "./session.guard";
  * - GET  /api/auth/callback/google   → Better Auth catch-all below
  * - POST /api/auth/logout     (SPA convenience alias for sign-out)
  * - GET  /api/auth/me         (session user for the SPA)
+ * - GET  /api/auth/accounts   (accounts signed in on this browser)
+ * - POST /api/auth/accounts/switch  (make one of them active)
  * - ALL  /api/auth/*path      → proxied into Better Auth's handler
  */
 @Controller("api/auth")
@@ -76,6 +85,7 @@ export class AuthController {
   async loginGoogle(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
+    @Query("add") addAccount?: string,
   ) {
     const google = this.google;
     if (!google.clientId || !google.clientSecret) {
@@ -87,7 +97,12 @@ export class AuthController {
     // `state` cookie on result.headers. Dropping it made every callback fail
     // with state_mismatch, because the state cookie never reached the browser.
     const result = await this.auth.api.signInSocial({
-      body: { provider: "google", callbackURL: "/" },
+      body: {
+        provider: "google",
+        callbackURL: "/",
+        // Without this Google silently reuses the account already signed in.
+        additionalParams: addAccount ? { prompt: "select_account" } : undefined,
+      },
       headers: fromNodeHeaders(request.headers),
       returnHeaders: true,
     });
@@ -103,9 +118,17 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    await this.auth.api
-      .signOut({ headers: fromNodeHeaders(request.headers) })
-      .catch(() => undefined);
+    // Signs out every account on this browser. Set-Cookie must be forwarded
+    // or the browser keeps cookies for sessions that no longer exist.
+    const result = await this.auth.api
+      .signOut({
+        headers: fromNodeHeaders(request.headers),
+        returnHeaders: true,
+      })
+      .catch(() => null);
+    for (const cookie of result?.headers?.getSetCookie() ?? []) {
+      response.append("Set-Cookie", cookie);
+    }
     return { status: "logged out" };
   }
 
@@ -123,6 +146,58 @@ export class AuthController {
       email: session.user.email,
       display_name: session.user.name,
     };
+  }
+
+  /** Never returns session tokens: they stay in HttpOnly cookies. */
+  @Public()
+  @Get("accounts")
+  async accounts(@Req() request: Request) {
+    const headers = fromNodeHeaders(request.headers);
+    const session = await this.auth.api.getSession({ headers });
+    if (!session) {
+      throw new UnauthorizedException("Not logged in");
+    }
+    const others = (await this.auth.api.listDeviceSessions({ headers })).filter(
+      (entry) => entry.user.id !== session.user.id,
+    );
+    const toAccount = (user: typeof session.user, active: boolean) => ({
+      id: user.id,
+      email: user.email,
+      display_name: user.name,
+      active,
+    });
+    return {
+      accounts: [
+        toAccount(session.user, true),
+        ...others.map((entry) => toAccount(entry.user, false)),
+      ],
+    };
+  }
+
+  @Public()
+  @Post("accounts/switch")
+  async switchAccount(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+    @Body({ schema: switchAccountSchema })
+    body: z.output<typeof switchAccountSchema>,
+  ) {
+    const headers = fromNodeHeaders(request.headers);
+    const target = (await this.auth.api.listDeviceSessions({ headers })).find(
+      (entry) => entry.user.id === body.user_id,
+    );
+    if (!target) {
+      throw new NotFoundException("That account isn't signed in here.");
+    }
+    const result = await this.auth.api.setActiveSession({
+      body: { sessionToken: target.session.token },
+      headers,
+      returnHeaders: true,
+    });
+    for (const cookie of result.headers?.getSetCookie() ?? []) {
+      response.append("Set-Cookie", cookie);
+    }
+    return { status: "switched" };
   }
 
   /** Everything else under /api/auth/* is Better Auth (signin, callback, ok…). */
