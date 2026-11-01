@@ -44,6 +44,7 @@ import {
   updateGraphParent,
   updateGraphSkill,
 } from "../lib/api";
+import GraphAddForm from "../components/GraphAddForm";
 
 const KINDS = [
   "skill",
@@ -511,6 +512,8 @@ export default function GraphPage() {
               </div>
             </Card>
           )}
+
+          <GraphAddForm projection={projection} />
 
           <Card className="space-y-3 p-4">
             <h2 className="text-sm font-semibold">Import</h2>
