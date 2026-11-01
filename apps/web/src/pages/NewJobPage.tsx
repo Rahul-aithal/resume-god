@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ROLE_STATUSES } from "@resume-god/api-client";
+import { SelectField, toOptions } from "../components/SelectField";
 import {
   Alert,
   Button,
@@ -10,7 +11,6 @@ import {
   PageHeader,
   Input,
   Textarea,
-  NativeSelect,
 } from "../components/ui";
 import {
   createCompany as createCompanyApi,
@@ -19,6 +19,14 @@ import {
   postTailor,
 } from "../lib/api";
 import { setSessionPlan } from "../lib/session";
+
+const PROVIDER_OPTIONS = [
+  { value: "auto", label: "Auto (LLM if key, else offline)" },
+  { value: "openai", label: "OpenAI (GPT)" },
+  { value: "gemini", label: "Gemini" },
+  { value: "glm", label: "GLM" },
+  { value: "deterministic", label: "Offline only" },
+];
 
 export default function NewJobPage() {
   const navigate = useNavigate();
@@ -119,22 +127,19 @@ export default function NewJobPage() {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Company">
-              <NativeSelect
-                className="w-full"
+              <SelectField
                 value={companyId}
-                onChange={(event) => setCompanyId(event.target.value)}
+                onValueChange={setCompanyId}
+                placeholder="Select a company…"
                 required
-              >
-                <option value="" disabled>
-                  Select a company…
-                </option>
-                {(companies.data?.companies ?? []).map((company) => (
-                  <option key={company.id} value={String(company.id)}>
-                    {company.name}
-                  </option>
-                ))}
-                <option value="__new__">+ New company…</option>
-              </NativeSelect>
+                options={[
+                  ...(companies.data?.companies ?? []).map((company) => ({
+                    value: String(company.id),
+                    label: company.name,
+                  })),
+                  { value: "__new__", label: "+ New company…" },
+                ]}
+              />
             </Field>
             {companyId === "__new__" && (
               <Field label="New company name">
@@ -161,30 +166,18 @@ export default function NewJobPage() {
               />
             </Field>
             <Field label="Pipeline status">
-              <NativeSelect
-                className="w-full"
+              <SelectField
                 value={roleStatus}
-                onChange={(event) => setRoleStatus(event.target.value)}
-              >
-                {ROLE_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={setRoleStatus}
+                options={toOptions(ROLE_STATUSES)}
+              />
             </Field>
             <Field label="Provider">
-              <NativeSelect
-                className="w-full"
+              <SelectField
                 value={provider}
-                onChange={(event) => setProvider(event.target.value)}
-              >
-                <option value="auto">Auto (LLM if key, else offline)</option>
-                <option value="openai">OpenAI (GPT)</option>
-                <option value="gemini">Gemini</option>
-                <option value="glm">GLM</option>
-                <option value="deterministic">Offline only</option>
-              </NativeSelect>
+                onValueChange={setProvider}
+                options={PROVIDER_OPTIONS}
+              />
             </Field>
             <Field label="Max bullets">
               <Input

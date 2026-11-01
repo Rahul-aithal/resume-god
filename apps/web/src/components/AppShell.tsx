@@ -1,17 +1,33 @@
-import { Suspense, useEffect, type ComponentType } from "react";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
+import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth, useLogout } from "../lib/auth";
+import { useIsDesktop } from "../lib/use-is-desktop";
 import {
   CompaniesIcon,
   DashboardIcon,
   GraphIcon,
   LogoMark,
   LogoutIcon,
+  NavCloseIcon,
+  NavOpenIcon,
   NewJobIcon,
   ReviewIcon,
   SettingsIcon,
 } from "./icons";
 import { Button, PageSkeleton, ThemeToggle, cx } from "./ui";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "./ui/resizable";
 
 export type LazyPage = ComponentType & {
   preload?: () => Promise<unknown>;
@@ -133,7 +149,9 @@ function titleFor(pathname: string): string {
   return "resume-god";
 }
 
-/** Application frame: sidebar on desktop, scrollable top bar on mobile.
+/** Application frame. Desktop: a sidebar that can be closed and resized.
+ * Mobile: a scrollable top bar. It's one tree at every width, so crossing the
+ * breakpoint never remounts the page or loses what's typed in a form.
  * Lazy route chunks render inside one Suspense boundary with a skeleton. */
 export default function AppShell({
   preloadMap,
@@ -142,10 +160,25 @@ export default function AppShell({
   preloadMap?: Partial<Record<string, () => Promise<unknown>>>;
 }) {
   const location = useLocation();
+  const isDesktop = useIsDesktop();
+  const nav = usePanelRef();
+  const layout = useDefaultLayout({ id: "app-shell" });
+  const scroller = useRef<HTMLDivElement>(null);
+  const [navOpen, setNavOpen] = useState(true);
+  const wasDesktop = useRef(isDesktop);
 
   useEffect(() => {
     document.title = `${titleFor(location.pathname)} · resume-god`;
+    // Pages scroll inside this panel, so the browser won't reset it for us.
+    scroller.current?.scrollTo?.(0, 0);
   }, [location.pathname]);
+
+  // The top bar replaces the sidebar on mobile; restore it when widening.
+  useLayoutEffect(() => {
+    if (!isDesktop) nav.current?.collapse();
+    else if (!wasDesktop.current) nav.current?.expand();
+    wasDesktop.current = isDesktop;
+  }, [isDesktop, nav]);
 
   const items = navItems().map((item) => ({
     ...item,
@@ -153,42 +186,82 @@ export default function AppShell({
   }));
 
   return (
-    <div className="min-h-dvh">
-      <div className="flex w-full">
-        {/* Desktop sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-5 border-r border-line px-3 py-4 lg:flex">
-          <div className="px-1.5">
-            <Wordmark />
-          </div>
-          <NavLinks items={items} layout="col" />
-          <div className="mt-auto flex flex-col gap-3">
-            <div className="flex items-center justify-between border-t border-line pt-3">
-              <span className="px-1.5 text-xs text-ink-2">Theme</span>
-              <ThemeToggle />
-            </div>
-            <UserBlock />
-          </div>
-        </aside>
-
-        {/* Mobile top bar */}
-        <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur lg:hidden">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+    // The group sets an inline height of 100%, so the wrapper sets the height.
+    <div className="h-dvh">
+      <ResizablePanelGroup
+        id="app-shell"
+        defaultLayout={layout.defaultLayout}
+        onLayoutChanged={layout.onLayoutChanged}
+      >
+        <ResizablePanel
+          id="nav"
+          panelRef={nav}
+          collapsible
+          defaultSize={224}
+          minSize={180}
+          maxSize={420}
+          onResize={(size) => setNavOpen(size.asPercentage > 0)}
+        >
+          {/* inert keeps a closed sidebar's links out of the Tab order. */}
+          <aside
+            inert={!navOpen}
+            className="flex h-full flex-col gap-5 overflow-y-auto px-3 py-4"
+          >
+            <div className="px-1.5">
               <Wordmark />
-              <ThemeToggle />
             </div>
-            <div className="overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <NavLinks items={items} layout="row" />
+            <NavLinks items={items} layout="col" />
+            <div className="mt-auto flex flex-col gap-3">
+              <div className="flex items-center justify-between border-t border-line pt-3">
+                <span className="px-1.5 text-xs text-ink-2">Theme</span>
+                <ThemeToggle />
+              </div>
+              <UserBlock />
             </div>
-          </header>
+          </aside>
+        </ResizablePanel>
+        <ResizableHandle withHandle className="hidden lg:flex" />
+        <ResizablePanel id="content">
+          <div className="relative h-full min-w-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={navOpen ? "Hide sidebar" : "Show sidebar"}
+              title={navOpen ? "Hide sidebar" : "Show sidebar"}
+              aria-expanded={navOpen}
+              className="absolute top-1.5 left-1.5 z-10 hidden size-7 p-0 lg:inline-flex"
+              onClick={() => {
+                if (navOpen) nav.current?.collapse();
+                else nav.current?.expand();
+              }}
+            >
+              {navOpen ? (
+                <NavCloseIcon className="size-4" />
+              ) : (
+                <NavOpenIcon className="size-4" />
+              )}
+            </Button>
+            <div ref={scroller} className="h-full overflow-y-auto">
+              {/* Mobile top bar */}
+              <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur lg:hidden">
+                <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                  <Wordmark />
+                  <ThemeToggle />
+                </div>
+                <div className="overflow-x-auto px-2 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <NavLinks items={items} layout="row" />
+                </div>
+              </header>
 
-          <main className="w-full px-4 py-5 sm:px-6 lg:px-10 lg:py-8 2xl:px-16">
-            <Suspense fallback={<PageSkeleton />}>
-              <Outlet />
-            </Suspense>
-          </main>
-        </div>
-      </div>
+              <main className="w-full px-4 py-5 sm:px-6 lg:px-10 lg:py-8 2xl:px-16">
+                <Suspense fallback={<PageSkeleton />}>
+                  <Outlet />
+                </Suspense>
+              </main>
+            </div>
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

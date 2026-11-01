@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ROLE_STATUSES } from "@resume-god/api-client";
-import { NativeSelect } from "./ui";
+import { SelectField, toOptions } from "./SelectField";
 import { patchRole } from "../lib/api";
 
 export default function RoleStatusEditor({
@@ -30,22 +30,17 @@ export default function RoleStatusEditor({
 
   return (
     <span className="inline-flex items-center gap-2">
-      <NativeSelect
-        aria-label={`Status for role ${roleId}`}
-        className="w-auto"
+      <SelectField
         size="sm"
+        className="w-auto"
+        aria-label={`Status for role ${roleId}`}
         value={value}
-        onChange={(event) => {
-          setValue(event.target.value);
-          update.mutate(event.target.value);
+        onValueChange={(next) => {
+          setValue(next);
+          update.mutate(next);
         }}
-      >
-        {ROLE_STATUSES.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </NativeSelect>
+        options={toOptions(ROLE_STATUSES)}
+      />
       {error && <span className="text-xs text-danger">{error}</span>}
     </span>
   );

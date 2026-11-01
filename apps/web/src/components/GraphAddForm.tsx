@@ -1,15 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { GraphProjection } from "@resume-god/api-client";
-import {
-  Alert,
-  Button,
-  Card,
-  Field,
-  Input,
-  NativeSelect,
-  Textarea,
-} from "./ui";
+import { SelectField } from "./SelectField";
+import { Alert, Button, Card, Field, Input, Textarea } from "./ui";
 import {
   createGraphAchievement,
   createGraphParent,
@@ -153,21 +146,18 @@ export default function GraphAddForm({
     <Card className="space-y-3 p-4">
       <h2 className="text-sm font-semibold">Add knowledge</h2>
       <Field label="Kind">
-        <NativeSelect
-          className="w-full"
+        <SelectField
           value={kind}
-          onChange={(event) => {
-            setKind(event.target.value as AddKind);
+          onValueChange={(next) => {
+            setKind(next as AddKind);
             setError(null);
             setAdded(null);
           }}
-        >
-          {Object.entries(KIND_LABEL).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </NativeSelect>
+          options={Object.entries(KIND_LABEL).map(([value, label]) => ({
+            value,
+            label,
+          }))}
+        />
       </Field>
 
       <form className="space-y-3" onSubmit={submit}>
@@ -232,21 +222,15 @@ export default function GraphAddForm({
         {kind === "achievement" && (
           <>
             <Field label="Part of (experience or project)">
-              <NativeSelect
-                className="w-full"
+              <SelectField
                 value={parentId}
-                onChange={(event) => setParentId(event.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Select…
-                </option>
-                {parents.map((node) => (
-                  <option key={node.id} value={node.id}>
-                    {node.label}
-                  </option>
-                ))}
-              </NativeSelect>
+                onValueChange={setParentId}
+                placeholder="Select…"
+                options={parents.map((node) => ({
+                  value: node.id,
+                  label: node.label,
+                }))}
+              />
             </Field>
             <Field label="What did you do?">
               <Textarea

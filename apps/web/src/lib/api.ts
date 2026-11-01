@@ -1,4 +1,5 @@
 import type {
+  ApiKeyStatus,
   ApplicationHistoryEntry,
   AuthProvidersInfo,
   Company,
@@ -193,6 +194,28 @@ export function updateSettings(
   return request<UserSettings>("/settings", {
     method: "PUT",
     body: JSON.stringify(body),
+  });
+}
+
+export function fetchApiKeys(): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>("/settings/api-keys");
+}
+
+export function saveApiKey(
+  provider: string,
+  apiKey: string,
+): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>(`/settings/api-keys/${provider}`, {
+    method: "PUT",
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+}
+
+export function deleteApiKey(
+  provider: string,
+): Promise<{ keys: ApiKeyStatus[] }> {
+  return request<{ keys: ApiKeyStatus[] }>(`/settings/api-keys/${provider}`, {
+    method: "DELETE",
   });
 }
 

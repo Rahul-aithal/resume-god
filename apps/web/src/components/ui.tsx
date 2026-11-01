@@ -9,7 +9,6 @@ import { Card as ShadcnCard } from "./ui/card";
 import { Skeleton } from "./ui/skeleton";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
-import { NativeSelect } from "./ui/native-select";
 
 /** Join conditional class names. */
 export function cx(...parts: Array<string | false | null | undefined>) {
@@ -315,4 +314,4 @@ export function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
-export { Input, Textarea, NativeSelect };
+export { Input, Textarea };

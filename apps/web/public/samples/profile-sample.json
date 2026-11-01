@@ -1,0 +1,107 @@
+{
+  "contact": {
+    "location": "Bengaluru, India",
+    "email": "alex@example.com",
+    "phone": "+91 90000 00000",
+    "linkedin": "https://linkedin.com/in/alex-example",
+    "github": "https://github.com/alex-example",
+    "personal_site": "https://alex.example.com"
+  },
+  "skills": [
+    {
+      "id": "skill_typescript",
+      "name": "TypeScript",
+      "category": "Languages",
+      "aliases": [
+        "TS"
+      ]
+    },
+    {
+      "id": "skill_react",
+      "name": "React",
+      "category": "Frontend",
+      "aliases": [
+        "React.js",
+        "ReactJS"
+      ]
+    },
+    {
+      "id": "skill_postgres",
+      "name": "PostgreSQL",
+      "category": "Databases",
+      "aliases": [
+        "Postgres"
+      ]
+    }
+  ],
+  "experiences": [
+    {
+      "id": "exp_acme",
+      "role": "Software Engineer",
+      "title": "Acme Corp",
+      "url": "https://acme.example.com",
+      "date_range": "Jan 2023 - Present"
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj_tracker",
+      "name": "Job Tracker",
+      "title": "Personal project",
+      "url": "https://github.com/alex-example/job-tracker",
+      "date_range": "2024"
+    }
+  ],
+  "achievements": [
+    {
+      "id": "ach_latency",
+      "part_of": "exp_acme",
+      "text": "Reduced API p95 latency by 40% by rewriting slow PostgreSQL queries.",
+      "date_range": "2024",
+      "skills": [
+        "skill_postgres",
+        "skill_typescript"
+      ],
+      "metrics": [
+        "40% lower p95 latency"
+      ]
+    },
+    {
+      "id": "ach_tracker",
+      "part_of": "proj_tracker",
+      "text": "Built a React dashboard to track job applications across companies.",
+      "skills": [
+        "skill_react",
+        "skill_typescript"
+      ],
+      "metrics": []
+    }
+  ],
+  "education": [
+    {
+      "id": "edu_btech",
+      "institution": "Example Institute of Technology",
+      "credential": "B.Tech, Computer Science",
+      "date_range": "2018 - 2022"
+    }
+  ],
+  "certifications": [
+    {
+      "id": "cert_aws",
+      "name": "AWS Certified Developer",
+      "issuer": "Amazon Web Services",
+      "issued_on": "2024-03-01"
+    }
+  ],
+  "soft_skills": [
+    {
+      "name": "Mentoring",
+      "detail": "Onboarded two junior engineers."
+    }
+  ],
+  "skill_implies": {
+    "skill_react": [
+      "skill_typescript"
+    ]
+  }
+}

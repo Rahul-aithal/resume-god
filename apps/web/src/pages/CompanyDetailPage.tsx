@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ROLE_STATUSES } from "@resume-god/api-client";
+import { SelectField, toOptions } from "../components/SelectField";
 import RoleStatusEditor from "../components/RoleStatusEditor";
 import {
   Alert,
@@ -9,7 +10,6 @@ import {
   Button,
   Card,
   Input,
-  NativeSelect,
   Skeleton,
   StatusBadge,
 } from "../components/ui";
@@ -208,17 +208,12 @@ function AddRoleForm({
             onChange={(event) => setTitle(event.target.value)}
             required
           />
-          <NativeSelect
-            className="w-full"
+          <SelectField
+            aria-label="Status"
             value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            {ROLE_STATUSES.map((status_) => (
-              <option key={status_} value={status_}>
-                {status_}
-              </option>
-            ))}
-          </NativeSelect>
+            onValueChange={setStatus}
+            options={toOptions(ROLE_STATUSES)}
+          />
           <Input
             placeholder="Job posting URL (optional)"
             value={jobUrl}

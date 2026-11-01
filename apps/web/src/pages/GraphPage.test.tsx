@@ -118,6 +118,66 @@ describe("GraphPage", () => {
     });
   });
 
+  it("edits the import document in the expanded editor", async () => {
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Expand editor" }),
+    );
+    const expanded = await screen.findByRole("textbox", {
+      name: "Profile document, expanded",
+    });
+    fireEvent.change(expanded, { target: { value: "skills: []" } });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("textbox", { name: "Profile document, expanded" }),
+      ).toBeNull();
+    });
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Profile document",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("skills: []");
+  });
+
+  it("lists nodes in the table tab and opens the inspector from a row", async () => {
+    vi.mocked(api.fetchGraphSkill).mockResolvedValue({
+      id: "skill_ts",
+      name: "TypeScript",
+      category: "Languages",
+      aliases: ["TS"],
+    });
+    renderPage();
+    await screen.findByText(/1 skills/);
+    fireEvent.click(screen.getByRole("tab", { name: "Table" }));
+    const search = await screen.findByRole("textbox", {
+      name: "Search the graph",
+    });
+    fireEvent.change(search, { target: { value: "admin" } });
+    expect(screen.queryByRole("button", { name: "TypeScript" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Built admin UIs" }),
+    ).toBeDefined();
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "TypeScript" }));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("JS, Javascript")).toBeDefined();
+    });
+  });
+
+  it("toggles fullscreen, filling the window if the browser refuses", async () => {
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Enter fullscreen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Exit fullscreen" }),
+    );
+    await screen.findByRole("button", { name: "Enter fullscreen" });
+  });
+
   it("marks the graph reviewed", async () => {
     vi.mocked(api.reviewGraph).mockResolvedValue({
       reviewed: true,

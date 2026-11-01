@@ -238,11 +238,11 @@
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--accent) 25%, transparent);
+    background: color-mix(in oklab, var(--brand) 40%, transparent);
   }
 
   :focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--accent) 70%, transparent);
+    outline: 2px solid color-mix(in oklab, var(--brand) 70%, transparent);
     outline-offset: 2px;
   }
 
@@ -284,28 +284,6 @@
     @apply rounded-md bg-surface-2;
     animation: skeleton-pulse 1.6s ease-in-out infinite;
   }
-
-  /* React Flow chrome follows the theme. */
-  .graph-canvas .react-flow__controls {
-    box-shadow: none;
-  }
-  .graph-canvas .react-flow__controls button {
-    background: var(--surface);
-    border-bottom: 1px solid var(--line);
-    color: var(--ink-2);
-    fill: var(--ink-2);
-  }
-  .graph-canvas .react-flow__controls button:hover {
-    background: var(--surface-2);
-    color: var(--ink);
-    fill: var(--ink);
-  }
-  .graph-canvas .react-flow__edge path {
-    stroke-linecap: round;
-  }
-  .graph-canvas .react-flow__edge-textbg {
-    fill: var(--surface);
-  }
 }
 
 @keyframes skeleton-pulse {
@@ -316,4 +294,35 @@
   50% {
     opacity: 0.55;
   }
+}
+
+/* React Flow chrome follows the theme. Unlayered on purpose: its stylesheet
+   is unlayered, so anything inside @layer would lose to it. */
+.graph-canvas .react-flow__controls {
+  box-shadow: none;
+}
+.graph-canvas .react-flow__controls button {
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  fill: var(--ink-2);
+}
+.graph-canvas .react-flow__controls button:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+  fill: var(--ink);
+}
+.graph-canvas .react-flow__edge path {
+  stroke-linecap: round;
+}
+.graph-canvas .react-flow__edge-textbg {
+  fill: var(--surface);
+}
+
+/* React Flow fills and shrinks control icons; lucide's are stroked. */
+.graph-canvas .react-flow__controls button svg.lucide {
+  fill: none;
+  stroke: currentColor;
+  max-width: 14px;
+  max-height: 14px;
 }

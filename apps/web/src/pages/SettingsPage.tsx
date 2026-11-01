@@ -9,6 +9,7 @@ import {
   Skeleton,
   Input,
 } from "../components/ui";
+import ApiKeysCard from "../components/ApiKeysCard";
 import { fetchProviders, fetchSettings, updateSettings } from "../lib/api";
 
 export default function SettingsPage() {
@@ -78,7 +79,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Settings"
-        lede="Per-user preferences used by every tailor run from the web app. API keys stay server-side (.env); only ordering, models, and font live here."
+        lede="Per-user preferences used by every tailor run from the web app."
       />
 
       <Card className="p-6">
@@ -140,6 +141,8 @@ export default function SettingsPage() {
           </Button>
         </form>
       </Card>
+
+      <ApiKeysCard />
 
       <Card className="p-6">
         <h2 className="text-sm font-semibold">Provider status</h2>

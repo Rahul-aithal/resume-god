@@ -258,3 +258,26 @@ describe("knowledge graph", () => {
     expect(badAchievement.status).toBe(404);
   });
 });
+
+describe("sample profiles offered by the import panel", () => {
+  for (const format of ["yaml", "json"] as const) {
+    it(`imports the ${format} sample`, async () => {
+      const content = await Bun.file(
+        new URL(
+          `../../web/public/samples/profile-sample.${format}`,
+          import.meta.url,
+        ),
+      ).text();
+      const response = await send(`${b.base}/api/graph/import`, "POST", {
+        format,
+        mode: "replace",
+        content,
+      });
+      expect(response.status).toBe(201);
+      const body = await json<{ imported: Record<string, number> }>(response);
+      expect(body.imported.skills).toBe(3);
+      expect(body.imported.parents).toBe(2);
+      expect(body.imported.achievements).toBe(2);
+    });
+  }
+});

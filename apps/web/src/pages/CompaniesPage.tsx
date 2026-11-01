@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import SidePanelLayout from "../components/SidePanelLayout";
 import {
   Alert,
   Button,
@@ -28,8 +29,17 @@ export default function CompaniesPage() {
         lede="Type a name to add one — details can come later."
       />
       <QuickAdd />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-3 lg:col-span-2">
+      <SidePanelLayout
+        id="companies-panel"
+        sideLabel="details"
+        heightClass="h-[calc(100dvh-13rem)]"
+        side={
+          <Card className="p-5">
+            <DetailsForm />
+          </Card>
+        }
+      >
+        <div className="h-full space-y-3 overflow-y-auto">
           {companies.isPending && (
             <div aria-busy="true" className="space-y-3">
               <Skeleton className="h-20 rounded-lg" />
@@ -89,11 +99,7 @@ export default function CompaniesPage() {
               </ul>
             ))}
         </div>
-
-        <Card className="h-fit p-5">
-          <DetailsForm />
-        </Card>
-      </div>
+      </SidePanelLayout>
     </div>
   );
 }

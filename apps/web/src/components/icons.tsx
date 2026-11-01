@@ -1,9 +1,15 @@
 import type { SVGProps } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Building2,
   Check,
   ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronsUpDown,
   Copy,
   Download,
   ExternalLink,
@@ -11,7 +17,14 @@ import {
   LayoutGrid,
   LoaderCircle,
   LogOut,
+  Maximize2,
+  Minimize2,
   Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  ScanSearch,
   Settings2,
   ShieldCheck,
   Sun,
@@ -95,6 +108,58 @@ export function AlertIcon(props: IconProps) {
 
 export function DownloadIcon(props: IconProps) {
   return <Download aria-hidden {...props} />;
+}
+
+export function ExpandIcon(props: IconProps) {
+  return <Maximize2 aria-hidden {...props} />;
+}
+
+export function CollapseIcon(props: IconProps) {
+  return <Minimize2 aria-hidden {...props} />;
+}
+
+export function FitViewIcon(props: IconProps) {
+  return <ScanSearch aria-hidden {...props} />;
+}
+
+export function NavCloseIcon(props: IconProps) {
+  return <PanelLeftClose aria-hidden {...props} />;
+}
+
+export function NavOpenIcon(props: IconProps) {
+  return <PanelLeftOpen aria-hidden {...props} />;
+}
+
+export function PanelCloseIcon(props: IconProps) {
+  return <PanelRightClose aria-hidden {...props} />;
+}
+
+export function PanelOpenIcon(props: IconProps) {
+  return <PanelRightOpen aria-hidden {...props} />;
+}
+
+export function ChevronRightIcon(props: IconProps) {
+  return <ChevronRight aria-hidden {...props} />;
+}
+
+export function FirstPageIcon(props: IconProps) {
+  return <ChevronsLeft aria-hidden {...props} />;
+}
+
+export function LastPageIcon(props: IconProps) {
+  return <ChevronsRight aria-hidden {...props} />;
+}
+
+export function SortAscIcon(props: IconProps) {
+  return <ArrowUp aria-hidden {...props} />;
+}
+
+export function SortDescIcon(props: IconProps) {
+  return <ArrowDown aria-hidden {...props} />;
+}
+
+export function SortNoneIcon(props: IconProps) {
+  return <ChevronsUpDown aria-hidden {...props} />;
 }
 
 export function ChevronLeftIcon(props: IconProps) {
