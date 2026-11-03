@@ -48,8 +48,6 @@ import {
   fetchGraphAchievement,
   fetchGraphSkill,
   importGraph,
-  reviewGraph,
-  unreviewGraph,
   updateGraphAchievement,
   updateGraphParent,
   updateGraphSkill,
@@ -202,12 +200,6 @@ export default function GraphPage() {
         setSelected(null);
         invalidate();
       },
-      onError,
-    }),
-    review: useMutation({
-      mutationFn: async (reviewed: boolean) =>
-        reviewed ? reviewGraph() : unreviewGraph(),
-      onSuccess: invalidate,
       onError,
     }),
     importGraph: useMutation({
@@ -435,27 +427,6 @@ export default function GraphPage() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {projection?.reviewed_at ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={mutations.review.isPending}
-              onClick={() => mutations.review.mutate(false)}
-              className="border-ok/40 text-ok hover:bg-ok/10"
-            >
-              Reviewed ✓ (click to un-review)
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={mutations.review.isPending}
-              onClick={() => mutations.review.mutate(true)}
-              className="border-review/50 text-review hover:bg-review/10"
-            >
-              Mark reviewed
-            </Button>
-          )}
           <Button
             variant="secondary"
             size="sm"

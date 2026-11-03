@@ -70,11 +70,12 @@ describe("GraphPage", () => {
     vi.mocked(api.fetchGraph).mockResolvedValue(PROJECTION as never);
   });
 
-  it("renders nodes, counts, and unreviewed state", async () => {
+  it("renders nodes and counts", async () => {
     renderPage();
     expect(await screen.findByText("Knowledge graph")).toBeDefined();
     expect(await screen.findByText(/1 skills/)).toBeDefined();
-    expect(await screen.findByText("Mark reviewed")).toBeDefined();
+    expect(await screen.findByText("Export YAML")).toBeDefined();
+    expect(screen.queryByText("Mark reviewed")).toBeNull();
   });
 
   it("opens the inspector and saves aliases", async () => {
@@ -197,17 +198,5 @@ describe("GraphPage", () => {
       await screen.findByRole("button", { name: "Exit fullscreen" }),
     );
     await screen.findByRole("button", { name: "Enter fullscreen" });
-  });
-
-  it("marks the graph reviewed", async () => {
-    vi.mocked(api.reviewGraph).mockResolvedValue({
-      reviewed: true,
-      reviewed_at: "2026-10-13T00:00:00.000Z",
-    });
-    renderPage();
-    fireEvent.click(await screen.findByText("Mark reviewed"));
-    await waitFor(() => {
-      expect(api.reviewGraph).toHaveBeenCalled();
-    });
   });
 });
