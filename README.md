@@ -11,8 +11,17 @@ Resume God turns your knowledge graph + a job description into:
 Pipeline: JD → graph retrieval (exact + 2-hop expansion + inference +
 TF-IDF semantic) → coverage-aware selection → constrained rewriting →
 resume-data → Typst v2 template → PDF. Deterministic end to end: no LLM
-is required; configured providers only *enhance* parsing, bullet
+is required; configured providers only _enhance_ parsing, bullet
 selection, and rewriting — grounding checks always run.
+
+## Resume bullets
+
+A resume entry gets several bullets, not one line: up to 3 per internship or job
+and 2 per project, across at most 4 projects unless another one shows a skill
+nothing else does. Numbers come from your graph's achievement text and metrics,
+and always reach the page. No number is ever invented: a rewrite claiming a
+number, amount, technology, or name your graph doesn't have is thrown away.
+Review flags points with no number, and "Add a number" saves one to your graph.
 
 ## Status (2026-11-01)
 
@@ -34,15 +43,14 @@ implementation.
   UI. Initial JS is ~136 KB gzipped (was ~162 KB); the React Flow canvas
   (~57 KB gz + its CSS) loads only on `/graph`, and the Select chunk
   (~39 KB gz) only on pages with a dropdown.
-- **Verification:** `bun run typecheck` clean; 75 server tests and 13
-  web tests passing. The `rg-test-pg` container (postgres:16-alpine,
+- **Verification:** `bun run typecheck` clean; all server, web, and api-client tests passing. The `rg-test-pg` container (postgres:16-alpine,
   `docker start rg-test-pg`) serves both purposes on **port 5433**:
   tests use the `resume_god_test` database, and host-run dev
   (`apps/server/.env`) points `DATABASE_URL` at `resume_god` on the
   same container. Compose dev instead exposes Postgres on 5432.
 
 The core safety rule: the system may only ever present facts that exist
-in your reviewed knowledge graph. Unknown skills are reported as gaps,
+in your knowledge graph. Unknown skills are reported as gaps,
 never promoted into claims.
 
 ## Monorepo layout (Bun + Turborepo)
@@ -75,6 +83,14 @@ bun install
 bun run dev      # server (3000) + web (5173) via turbo
 ```
 
+PDFs need the Typst binary, which the Docker image includes. Without Docker,
+install the same version on your PATH, or point `TYPST_BIN` at it:
+
+```bash
+curl -fsSL https://github.com/typst/typst/releases/download/v0.13.1/typst-x86_64-unknown-linux-musl.tar.xz \
+  | tar xJ --strip-components=1 -C ~/.local/bin typst-x86_64-unknown-linux-musl/typst
+```
+
 Google login: set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
 (`apps/server/.env`); register the redirect URI
 `http://localhost:5173/api/auth/callback/google`. Without credentials the
@@ -88,8 +104,6 @@ login page explains setup instead of crashing.
 - Import: paste a profile document (YAML or JSON) — files are transport,
   never storage.
 - Export: download the full graph as YAML/JSON any time.
-- Review gate: tailoring/rendering requires "Mark reviewed"; edits clear
-  it, keeping unreviewed data out of resumes.
 
 Auth account is the fallback identity: with no contact row, your Google
 name/email are used.
@@ -117,10 +131,16 @@ server runs 2 jobs at once, and each user can have 10 in progress.
 
 - `POST /api/tailor/jobs` queues a job and returns immediately (202).
 - `GET /api/tailor/jobs` lists your latest 50 jobs, without their results.
-- `GET /api/tailor/jobs/:id` returns one job with its result.
+- `GET /api/tailor/jobs/:id` returns one job with its input and result.
+- `POST /api/tailor/jobs/:id/retry` replaces a failed job with a new one, using
+  its old input or the edited `request` you send.
 
-The web app lists them under Tailoring. `POST /api/tailor` still runs
-synchronously for scripts.
+The web app lists them under Tailoring, with Retry and Edit and retry on failed
+jobs. `POST /api/tailor` still runs synchronously for scripts.
+
+The server logs each job's progress to stdout with its job ID: queued, started,
+stages, provider fallbacks, the time taken, and the full reason for any failure.
+Job descriptions and emails are never logged.
 
 ## JSON API
 

@@ -19,7 +19,7 @@
 #let contact = data.contact
 
 #set page(paper: "us-letter", margin: (top: 0.7in, bottom: 0.7in, left: 0.7in, right: 0.7in))
-#set text(font: font-chain, size: size-normal, fill: mid, lang: "en")
+#set text(font: (data.font, ..font-chain), size: size-normal, fill: mid, lang: "en")
 #set par(leading: 0.62em, spacing: 0.9em, justify: false)
 #set list(indent: 0.14em, body-indent: 0.5em, spacing: 0.85em)
 #set enum(indent: 0.14em, body-indent: 0.5em, spacing: 0.85em)
@@ -41,15 +41,22 @@
 
 // ---- builders ----
 
+#let separator = text(fill: light)[#h(0.6em) | #h(0.6em)]
+
+// Profiles hold full URLs, bare domains, or handles.
+#let as-url(value, base: "https://") = {
+  if value.starts-with("http://") or value.starts-with("https://") { value } else { base + value }
+}
+
 #let role-header(company, title, location, dates) = {
   set text(size: size-normal)
-  block(above: 1em, below: 0.45em)[
-    #text(fill: dark, weight: "bold")[#company]
-    #text(fill: light)[#h(0.6em) | #h(0.6em)]
-    #text(fill: mid)[#emph[#title]]
-    #text(fill: light)[#h(0.6em) | #h(0.6em)]
-    #text(fill: light)[#location#if location != "" and dates != "" [#h(0.6em) | #h(0.6em)]#dates]
-  ]
+  let parts = (
+    if company != "" { text(fill: dark, weight: "bold", company) },
+    if title != "" { text(fill: mid, emph(title)) },
+    if location != "" { text(fill: light, location) },
+    if dates != "" { text(fill: light, dates) },
+  ).filter(part => part != none)
+  block(above: 1em, below: 0.45em, parts.join(separator))
 }
 
 #let project-header(name, stack, date, url) = {
@@ -62,7 +69,7 @@
   }
   if url != "" {
     head += text(fill: light, "  ")
-    head += link(url, url)
+    head += link(as-url(url), url)
   }
   block(above: 1em, below: 0.45em, head)
 }
@@ -84,65 +91,85 @@
   #text(fill: dark, size: size-name, weight: "bold")[#contact.name]
 ]
 
-#block(above: 0pt, below: 0.6em)[
-  #text(fill: light)[
-    #contact.location#h(0.6em) | #h(0.6em)#contact.phone#h(0.6em) | #h(0.6em)#contact.email#h(0.6em) | #h(0.6em)
-    #link("https://" + contact.linkedin)[LinkedIn]#h(0.6em) | #h(0.6em)
-    #link("https://github.com/" + contact.github)[GitHub]#h(0.6em) | #h(0.6em)
-    #link("https://" + contact.personal_site)[Portfolio]
-  ]
-]
+#{
+  let parts = (
+    if contact.location != "" { text(fill: light, contact.location) },
+    if contact.phone != "" { text(fill: light, contact.phone) },
+    if contact.email != "" { text(fill: light, contact.email) },
+    if contact.linkedin != "" { link(as-url(contact.linkedin))[LinkedIn] },
+    if contact.github != "" { link(as-url(contact.github, base: "https://github.com/"))[GitHub] },
+    if contact.personal_site != "" { link(as-url(contact.personal_site))[Portfolio] },
+  ).filter(part => part != none)
+  block(above: 0pt, below: 0.6em, parts.join(separator))
+}
 
 // ---- sections ----
 
-== Summary
+#let experience = data.sections.filter(s => s.kind == "experience")
+#let projects = data.sections.filter(s => s.kind == "project")
 
-#data.summary
+#if data.summary != "" [
+  == Summary
 
-== Experience
+  #data.summary
+]
 
-#for section in data.sections.filter(s => s.kind == "experience") [
-  #role-header(section.organization, section.role, section.location, section.dates)
-  #for bullet in section.bullets [
-    - #bullet
+#if experience.len() > 0 [
+  == Experience
+
+  #for section in experience [
+    #role-header(section.organization, section.role, section.location, section.dates)
+    #for bullet in section.bullets [
+      - #bullet
+    ]
   ]
 ]
 
-== Projects
+#if projects.len() > 0 [
+  == Projects
 
-#for section in data.sections.filter(s => s.kind == "project") [
-  #project-header(section.name, section.tech_stack, section.dates, section.url)
-  #for bullet in section.bullets [
-    - #bullet
+  #for section in projects [
+    #project-header(section.name, section.tech_stack, section.dates, section.url)
+    #for bullet in section.bullets [
+      - #bullet
+    ]
   ]
 ]
 
-== Technical Skills
+#if data.skills.len() > 0 [
+  == Technical Skills
 
-#for cat in data.skills [
-  #tech-stack(cat.category, cat.names.join(", "))
-]
-
-== Education
-
-#for node in data.education [
-  #block(above: 0.7em, below: 0.3em)[
-    #text(fill: dark, weight: "bold")[#node.degree]
-    #text(fill: light)[#h(0.6em) - #h(0.6em)#node.institution#if node.dates != "" [#h(0.6em) | #h(0.6em)#node.dates]]
-  ]
-  #if node.details.len() > 0 [
-    #text(fill: light)[#emph[Relevant Coursework: #node.details.join(", ")]]
+  #for cat in data.skills [
+    #tech-stack(cat.category, cat.names.join(", "))
   ]
 ]
 
-== Certifications
+#if data.education.len() > 0 [
+  == Education
 
-#for node in data.certifications [
-  #bullet-line(text(fill: dark, node.name), if node.issuer != "" { text(fill: light, " — " + node.issuer) })
+  #for node in data.education [
+    #block(above: 0.7em, below: 0.3em)[
+      #text(fill: dark, weight: "bold")[#node.degree]
+      #text(fill: light)[#h(0.6em) - #h(0.6em)#node.institution#if node.dates != "" [#h(0.6em) | #h(0.6em)#node.dates]]
+    ]
+    #if node.details.len() > 0 [
+      #text(fill: light)[#emph[Relevant Coursework: #node.details.join(", ")]]
+    ]
+  ]
 ]
 
-== Soft Skills
+#if data.certifications.len() > 0 [
+  == Certifications
 
-#for node in data.soft_skills [
-  #bullet-line(text(fill: dark, weight: "bold", node.name), if node.detail != "" { text(fill: light, " — " + node.detail) })
+  #for node in data.certifications [
+    #bullet-line(text(fill: dark, node.name), if node.issuer != "" { text(fill: light, " — " + node.issuer) })
+  ]
+]
+
+#if data.soft_skills.len() > 0 [
+  == Soft Skills
+
+  #for node in data.soft_skills [
+    #bullet-line(text(fill: dark, weight: "bold", node.name), if node.detail != "" { text(fill: light, " — " + node.detail) })
+  ]
 ]

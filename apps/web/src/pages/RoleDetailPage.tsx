@@ -1,12 +1,33 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import RoleStatusEditor from "../components/RoleStatusEditor";
-import { Alert, Card, Skeleton, StatusBadge } from "../components/ui";
+import { Alert, Button, Card, Skeleton, StatusBadge } from "../components/ui";
+import type { TailorJob } from "@resume-god/api-client";
 import { fetchRoleHistory } from "../lib/api";
+import { useOpenJob } from "../lib/use-open-job";
+import { useTailorJobs } from "../lib/use-tailor-jobs";
+
+function ResumeRow({ job }: { job: TailorJob }) {
+  const open = useOpenJob(job.id);
+  return (
+    <li className="flex items-center justify-between gap-4 p-4">
+      <span className="text-[13px]">
+        {new Date(job.created_at).toLocaleString()}
+      </span>
+      <Button loading={open.isPending} onClick={() => open.mutate()}>
+        Review
+      </Button>
+    </li>
+  );
+}
 
 export default function RoleDetailPage() {
   const { id } = useParams();
   const roleId = Number(id);
+  const jobs = useTailorJobs();
+  const resumes = (jobs.data?.jobs ?? []).filter(
+    (job) => job.role_id === roleId && job.status === "succeeded",
+  );
   const history = useQuery({
     queryKey: ["role", roleId],
     queryFn: () => fetchRoleHistory(roleId),
@@ -87,6 +108,21 @@ export default function RoleDetailPage() {
           Tailor a new resume for this role
         </Link>
       </Card>
+
+      {resumes.length > 0 && (
+        <section aria-label="Resumes for this role">
+          <h2 className="text-[13px] font-medium text-ink-2">
+            Resumes for this role
+          </h2>
+          <Card className="mt-2.5 gap-0 py-0">
+            <ul className="divide-y divide-line">
+              {resumes.map((job) => (
+                <ResumeRow key={job.id} job={job} />
+              ))}
+            </ul>
+          </Card>
+        </section>
+      )}
 
       <Card className="p-5">
         <h2 className="text-sm font-semibold">Application history</h2>
