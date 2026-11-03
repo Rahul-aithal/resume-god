@@ -11,6 +11,8 @@ interface SessionPlan {
   providers?: ProviderStages;
   /** Absent on plans saved before resumes were kept alongside them. */
   resumeData?: PlanJson;
+  /** Lets reviewed edits be saved with the job they came from. */
+  jobId?: string;
 }
 
 interface StoredPlan extends SessionPlan {
@@ -32,6 +34,7 @@ function load(): SessionPlan | null {
       plan: stored.plan,
       providers: stored.providers,
       resumeData: stored.resumeData,
+      jobId: stored.jobId,
     };
   } catch {
     return null;
@@ -41,9 +44,14 @@ function load(): SessionPlan | null {
 export function setSessionPlan(
   plan: PlanJson,
   providers?: ProviderStages,
-  extra?: { resumeData?: PlanJson },
+  extra?: { resumeData?: PlanJson; jobId?: string },
 ): void {
-  session = { plan, providers, resumeData: extra?.resumeData };
+  session = {
+    plan,
+    providers,
+    resumeData: extra?.resumeData,
+    jobId: extra?.jobId,
+  };
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
@@ -51,6 +59,7 @@ export function setSessionPlan(
         plan,
         providers,
         resumeData: extra?.resumeData,
+        jobId: extra?.jobId,
         savedAt: new Date().toISOString(),
       } satisfies StoredPlan),
     );

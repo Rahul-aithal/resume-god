@@ -120,7 +120,21 @@ export interface TailorJob {
   finished_at: string | null;
 }
 
+export interface TailorJobRequest {
+  jd_text: string;
+  target_title?: string;
+  provider?: string;
+  max_achievements?: number;
+  summary?: string;
+  font?: string;
+  company_id?: number;
+  company_name?: string;
+  job_url?: string;
+  role_status?: string;
+}
+
 export interface TailorJobDetail extends TailorJob {
+  request: TailorJobRequest;
   result: {
     plan: PlanJson;
     resume_data: PlanJson;

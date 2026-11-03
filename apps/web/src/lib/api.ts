@@ -24,6 +24,7 @@ import type {
   RolePatch,
   TailorJob,
   TailorJobDetail,
+  TailorJobRequest,
   UserSettings,
 } from "@resume-god/api-client";
 import { API_PREFIX } from "@resume-god/api-client";
@@ -71,19 +72,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export interface TailorInput {
-  jd_text: string;
-  target_title?: string;
-  provider?: string;
-  max_achievements?: number;
-  summary?: string;
-  font?: string;
-  company_id?: number;
-  company_name?: string;
-  job_url?: string;
-  role_status?: string;
-}
-
 export function fetchProviders(): Promise<ProvidersStatus> {
   return request<ProvidersStatus>("/providers");
 }
@@ -111,10 +99,21 @@ export function switchAccount(userId: string): Promise<{ status: string }> {
   });
 }
 
-export function createTailorJob(input: TailorInput): Promise<TailorJob> {
+export function createTailorJob(input: TailorJobRequest): Promise<TailorJob> {
   return request<TailorJob>("/tailor/jobs", {
     method: "POST",
     body: JSON.stringify(input),
+  });
+}
+
+/** Without a request, the failed job runs again with the input it had. */
+export function retryTailorJob(
+  id: string,
+  edited?: TailorJobRequest,
+): Promise<TailorJob> {
+  return request<TailorJob>(`/tailor/jobs/${id}/retry`, {
+    method: "POST",
+    body: JSON.stringify({ request: edited }),
   });
 }
 
@@ -131,6 +130,7 @@ export function postReview(
   rewrittenText: Record<string, string>,
   summary?: string,
   font?: string,
+  jobId?: string,
 ): Promise<ReviewResponse> {
   return request<ReviewResponse>("/review", {
     method: "POST",
@@ -138,6 +138,7 @@ export function postReview(
       plan,
       edits: { rewritten_text: rewrittenText, summary },
       font,
+      job_id: jobId,
     }),
   });
 }
@@ -153,8 +154,18 @@ export async function postRender(resumeData: PlanJson): Promise<Blob> {
       .json()
       .then((body) => body.message ?? body.detail ?? response.statusText)
       .catch(() => response.statusText);
-    throw new ApiError(response.status, `API ${response.status}: ${detail}`);
+    throw new ApiError(response.status, detail);
   }
+  return response.blob();
+}
+
+export async function postRenderDocx(resumeData: PlanJson): Promise<Blob> {
+  const response = await fetch(`${API_PREFIX}/render/docx`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ resume_data: resumeData }),
+  });
+  if (!response.ok) throw new ApiError(response.status, response.statusText);
   return response.blob();
 }
 

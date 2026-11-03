@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ROLE_STATUSES } from "@resume-god/api-client";
+import { ROLE_STATUSES, type TailorJobDetail } from "@resume-god/api-client";
 import { SelectField, toOptions } from "../components/SelectField";
 import {
   Alert,
@@ -10,13 +10,16 @@ import {
   Field,
   PageHeader,
   Input,
+  Skeleton,
   Textarea,
 } from "../components/ui";
 import {
   createCompany as createCompanyApi,
   fetchCompanies,
   fetchSettings,
+  fetchTailorJob,
   createTailorJob,
+  retryTailorJob,
 } from "../lib/api";
 
 const PROVIDER_OPTIONS = [
@@ -27,7 +30,30 @@ const PROVIDER_OPTIONS = [
   { value: "deterministic", label: "Offline only" },
 ];
 
+/** With ?retry=<job id>, the form opens on that failed job's input. */
 export default function NewJobPage() {
+  const [searchParams] = useSearchParams();
+  const retryId = searchParams.get("retry");
+  const job = useQuery({
+    queryKey: ["tailor-job", retryId],
+    queryFn: () => fetchTailorJob(retryId as string),
+    enabled: retryId !== null,
+    gcTime: 0,
+  });
+  if (retryId === null) return <JobForm />;
+  if (job.isPending) return <Skeleton className="h-96 rounded-lg" />;
+  if (job.isError) {
+    return (
+      <Alert role="alert" title="Could not load this job">
+        {job.error.message}
+      </Alert>
+    );
+  }
+  return <JobForm key={job.data.id} failed={job.data} />;
+}
+
+function JobForm({ failed }: { failed?: TailorJobDetail }) {
+  const previous = failed?.request;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -37,20 +63,28 @@ export default function NewJobPage() {
   });
   const settings = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
 
-  const [companyId, setCompanyId] = useState<string>(
-    searchParams.get("companyId") ?? "",
+  const [companyId, setCompanyId] = useState<string>(() => {
+    if (previous?.company_id != null) return String(previous.company_id);
+    if (previous?.company_name) return "__new__";
+    return searchParams.get("companyId") ?? "";
+  });
+  const [newCompanyName, setNewCompanyName] = useState(
+    previous?.company_name ?? "",
   );
-  const [newCompanyName, setNewCompanyName] = useState("");
   const [targetTitle, setTargetTitle] = useState(
-    searchParams.get("title") ?? "",
+    previous?.target_title ?? searchParams.get("title") ?? "",
   );
-  const [jobUrl, setJobUrl] = useState("");
-  const [roleStatus, setRoleStatus] = useState("applied");
-  const [provider, setProvider] = useState("auto");
-  const [maxAchievements, setMaxAchievements] = useState("10");
-  const [font, setFont] = useState("");
-  const [summary, setSummary] = useState("");
-  const [jdText, setJdText] = useState("");
+  const [jobUrl, setJobUrl] = useState(previous?.job_url ?? "");
+  const [roleStatus, setRoleStatus] = useState(
+    previous?.role_status ?? "applied",
+  );
+  const [provider, setProvider] = useState(previous?.provider ?? "auto");
+  const [maxAchievements, setMaxAchievements] = useState(
+    String(previous?.max_achievements ?? 14),
+  );
+  const [font, setFont] = useState(previous?.font ?? "");
+  const [summary, setSummary] = useState(previous?.summary ?? "");
+  const [jdText, setJdText] = useState(previous?.jd_text ?? "");
 
   const createCompany = useMutation({
     mutationFn: () => createCompanyApi({ name: newCompanyName }),
@@ -65,18 +99,19 @@ export default function NewJobPage() {
     mutationFn: () => {
       const selectedId =
         companyId === "__new__" ? undefined : Number(companyId) || undefined;
-      return createTailorJob({
+      const input = {
         jd_text: jdText,
         target_title: targetTitle || undefined,
         provider,
-        max_achievements: Number(maxAchievements) || 10,
+        max_achievements: Number(maxAchievements) || 14,
         font: font || settings.data?.default_font || undefined,
         summary: summary || undefined,
         company_id: selectedId,
         company_name: companyId === "__new__" ? newCompanyName : undefined,
         job_url: jobUrl || undefined,
         role_status: roleStatus,
-      });
+      };
+      return failed ? retryTailorJob(failed.id, input) : createTailorJob(input);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tailor-jobs"] });
@@ -94,9 +129,19 @@ export default function NewJobPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="New application"
-        lede="Paste a job description. Your resume is prepared in the background, using only your reviewed graph."
+        title={failed ? "Edit and retry" : "New application"}
+        lede={
+          failed
+            ? "Change anything below, then run this job again."
+            : "Paste a job description. Your resume is prepared in the background, using only your graph."
+        }
       />
+
+      {failed?.error && (
+        <Alert role="alert" tone="review" title="The last attempt failed">
+          {failed.error}
+        </Alert>
+      )}
 
       <Card className="p-6">
         <form
@@ -132,7 +177,10 @@ export default function NewJobPage() {
                 />
               </Field>
             )}
-            <Field label="Target title">
+            <Field
+              label="Target title"
+              hint="Leave empty to use the title in the posting."
+            >
               <Input
                 placeholder="Software Engineer"
                 value={targetTitle}
@@ -179,7 +227,7 @@ export default function NewJobPage() {
           </div>
           <Field label="Summary override (optional)">
             <Input
-              placeholder="Leave empty to use the reviewed profile summary"
+              placeholder="Leave empty to generate one"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
             />
@@ -206,7 +254,11 @@ export default function NewJobPage() {
             loading={tailor.isPending}
             disabled={!canSubmit}
           >
-            {tailor.isPending ? "Starting…" : "Start tailoring"}
+            {tailor.isPending
+              ? "Starting…"
+              : failed
+                ? "Retry tailoring"
+                : "Start tailoring"}
           </Button>
         </form>
       </Card>

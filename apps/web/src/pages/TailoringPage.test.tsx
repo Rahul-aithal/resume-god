@@ -21,6 +21,7 @@ vi.mock("../lib/api", async (importOriginal) => {
     ...original,
     fetchTailorJobs: vi.fn(),
     fetchTailorJob: vi.fn(),
+    retryTailorJob: vi.fn(),
   };
 });
 
@@ -61,6 +62,7 @@ describe("TailoringPage", () => {
   beforeEach(() => {
     vi.mocked(api.fetchTailorJobs).mockReset();
     vi.mocked(api.fetchTailorJob).mockReset();
+    vi.mocked(api.retryTailorJob).mockReset();
   });
 
   it("separates running jobs from finished ones", async () => {
@@ -105,6 +107,7 @@ describe("TailoringPage", () => {
     });
     vi.mocked(api.fetchTailorJob).mockResolvedValue({
       ...job({ status: "succeeded", stage: null }),
+      request: { jd_text: "We need TypeScript." },
       result: {
         plan: { target_title: "Frontend Engineer" },
         resume_data: { font: "Calibri" },
@@ -118,6 +121,42 @@ describe("TailoringPage", () => {
     await waitFor(() => {
       expect(getSessionPlan()?.resumeData).toEqual({ font: "Calibri" });
     });
+  });
+
+  it("retries a failed job, and links to editing it first", async () => {
+    const failed = job({ status: "failed", stage: null, error: "Boom" });
+    vi.mocked(api.fetchTailorJobs)
+      .mockResolvedValueOnce({ jobs: [failed] })
+      .mockResolvedValue({ jobs: [job({ id: "job-2" })] });
+    vi.mocked(api.retryTailorJob).mockResolvedValue(job({ id: "job-2" }));
+    renderPage();
+    const edit = await screen.findByRole("link", { name: "Edit and retry" });
+    expect(edit.getAttribute("href")).toBe("/jobs/new?retry=job-1");
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByText("Rewriting bullet points");
+    expect(vi.mocked(api.retryTailorJob).mock.calls[0]).toEqual(["job-1"]);
+    expect(screen.queryByText("Boom")).toBeNull();
+  });
+
+  it("explains a retry that didn't start", async () => {
+    vi.mocked(api.fetchTailorJobs).mockResolvedValue({
+      jobs: [job({ status: "failed", stage: null, error: "Boom" })],
+    });
+    vi.mocked(api.retryTailorJob).mockRejectedValue(
+      new api.ApiError(404, "Company not found"),
+    );
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    expect(await screen.findByText(/Company not found/)).toBeDefined();
+  });
+
+  it("offers no retry on a job that didn't fail", async () => {
+    vi.mocked(api.fetchTailorJobs).mockResolvedValue({
+      jobs: [job({ status: "succeeded", stage: null })],
+    });
+    renderPage();
+    await screen.findByRole("button", { name: "Review" });
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("explains what to do when there are no jobs", async () => {

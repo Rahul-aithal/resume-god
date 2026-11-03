@@ -1,5 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import type { TailorJob } from "@resume-god/api-client";
 import { SpinnerIcon } from "../components/icons";
 import {
@@ -12,8 +12,8 @@ import {
   Skeleton,
   buttonVariants,
 } from "../components/ui";
-import { fetchTailorJob } from "../lib/api";
-import { setSessionPlan } from "../lib/session";
+import { retryTailorJob } from "../lib/api";
+import { useOpenJob } from "../lib/use-open-job";
 import { isActive, useTailorJobs } from "../lib/use-tailor-jobs";
 
 const STAGE_LABEL: Record<string, string> = {
@@ -33,16 +33,13 @@ function title(job: TailorJob) {
 }
 
 function JobRow({ job }: { job: TailorJob }) {
-  const navigate = useNavigate();
-  const open = useMutation({
-    mutationFn: () => fetchTailorJob(job.id),
-    onSuccess: (full) => {
-      if (!full.result) return;
-      setSessionPlan(full.result.plan, full.result.providers, {
-        resumeData: full.result.resume_data,
-      });
-      navigate("/review");
-    },
+  const open = useOpenJob(job.id);
+  const queryClient = useQueryClient();
+  const retry = useMutation({
+    mutationFn: () => retryTailorJob(job.id),
+    // Stays pending until the list updates, so a second click can't land.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["tailor-jobs"] }),
   });
 
   return (
@@ -70,6 +67,11 @@ function JobRow({ job }: { job: TailorJob }) {
             Could not open this plan: {String(open.error)}
           </p>
         )}
+        {retry.isError && (
+          <p role="alert" className="mt-1.5 text-xs text-danger">
+            Could not retry: {retry.error.message}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         {job.status === "queued" && (
@@ -81,7 +83,20 @@ function JobRow({ job }: { job: TailorJob }) {
             {STAGE_LABEL[job.stage ?? ""] ?? "Working"}
           </span>
         )}
-        {job.status === "failed" && <DotBadge color="danger">Failed</DotBadge>}
+        {job.status === "failed" && (
+          <>
+            <DotBadge color="danger">Failed</DotBadge>
+            <Link
+              to={`/jobs/new?retry=${job.id}`}
+              className={buttonVariants("ghost")}
+            >
+              Edit and retry
+            </Link>
+            <Button loading={retry.isPending} onClick={() => retry.mutate()}>
+              Retry
+            </Button>
+          </>
+        )}
         {job.status === "succeeded" && (
           <>
             <DotBadge color="ok">Ready</DotBadge>

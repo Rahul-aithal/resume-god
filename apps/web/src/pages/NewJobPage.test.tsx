@@ -19,6 +19,8 @@ vi.mock("../lib/api", async (importOriginal) => {
     fetchCompanies: vi.fn(),
     fetchSettings: vi.fn(),
     createTailorJob: vi.fn(),
+    fetchTailorJob: vi.fn(),
+    retryTailorJob: vi.fn(),
   };
 });
 
@@ -43,6 +45,8 @@ describe("NewJobPage", () => {
     vi.mocked(api.fetchCompanies).mockReset();
     vi.mocked(api.fetchSettings).mockReset();
     vi.mocked(api.createTailorJob).mockReset();
+    vi.mocked(api.fetchTailorJob).mockReset();
+    vi.mocked(api.retryTailorJob).mockReset();
     queryClient.clear();
   });
 
@@ -146,5 +150,100 @@ describe("NewJobPage", () => {
         role_status: "applied",
       }),
     );
+  });
+
+  describe("editing a failed job", () => {
+    function renderRetry() {
+      vi.mocked(api.fetchCompanies).mockResolvedValue({
+        companies: [
+          {
+            id: 1,
+            name: "Goodspace",
+            website: "",
+            location: "",
+            about: "",
+            notes: "",
+            role_count: 0,
+            created_at: null,
+            updated_at: null,
+          },
+        ],
+      });
+      vi.mocked(api.fetchSettings).mockResolvedValue({
+        llm_order: "gemini",
+        gemini_model: "g",
+        glm_model: "g",
+        openai_model: "o",
+        default_font: "Calibri",
+      });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={["/jobs/new?retry=job-1"]}>
+            <Routes>
+              <Route path="/jobs/new" element={<NewJobPage />} />
+              <Route path="/tailoring" element={<h1>Jobs list</h1>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    }
+
+    const failed = {
+      id: "job-1",
+      status: "failed",
+      stage: null,
+      target_title: "SDE",
+      company: "Goodspace",
+      role_id: null,
+      error: "It broke",
+      warning: null,
+      created_at: "2026-11-01T10:00:00.000Z",
+      started_at: null,
+      finished_at: null,
+      result: null,
+      request: {
+        jd_text: "We need TypeScript.",
+        target_title: "SDE",
+        company_id: 1,
+        max_achievements: 4,
+        provider: "gemini",
+      },
+    } as const;
+
+    it("opens on the job's input and retries that job with the edits", async () => {
+      vi.mocked(api.fetchTailorJob).mockResolvedValue(failed as never);
+      vi.mocked(api.retryTailorJob).mockResolvedValue({ id: "j2" } as never);
+      renderRetry();
+      expect(
+        await screen.findByRole("heading", { name: "Edit and retry" }),
+      ).toBeDefined();
+      expect(screen.getByText("It broke")).toBeDefined();
+      const title = screen.getByRole("textbox", {
+        name: /target title/i,
+      }) as HTMLInputElement;
+      expect(title.value).toBe("SDE");
+      fireEvent.change(title, { target: { value: "" } });
+      fireEvent.click(screen.getByRole("button", { name: "Retry tailoring" }));
+      await screen.findByRole("heading", { name: "Jobs list" });
+      expect(api.createTailorJob).not.toHaveBeenCalled();
+      expect(api.retryTailorJob).toHaveBeenCalledWith(
+        "job-1",
+        expect.objectContaining({
+          jd_text: "We need TypeScript.",
+          target_title: undefined,
+          company_id: 1,
+          max_achievements: 4,
+          provider: "gemini",
+        }),
+      );
+    });
+
+    it("says so when the job can't be loaded", async () => {
+      vi.mocked(api.fetchTailorJob).mockRejectedValue(
+        new api.ApiError(404, "Job not found"),
+      );
+      renderRetry();
+      expect(await screen.findByText("Job not found")).toBeDefined();
+    });
   });
 });
