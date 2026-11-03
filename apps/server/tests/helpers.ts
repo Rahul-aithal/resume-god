@@ -1,8 +1,5 @@
 import type { INestApplication, Provider } from "@nestjs/common";
-import {
-  StandardSchemaSerializerInterceptor,
-  StandardSchemaValidationPipe,
-} from "@nestjs/common";
+import { StandardSchemaSerializerInterceptor } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
 
@@ -67,8 +64,8 @@ export async function makeApp(user: TestUser) {
   }).compile();
 
   const app = moduleRef.createNestApplication();
-  // Mirror main.ts: schema validation + schema-shaped responses + envelope.
-  app.useGlobalPipes(new StandardSchemaValidationPipe());
+  // Mirror main.ts: schema-shaped responses + envelope. Validation comes with
+  // the module, as APP_PIPE.
   app.useGlobalInterceptors(
     new StandardSchemaSerializerInterceptor(app.get(Reflector)),
   );

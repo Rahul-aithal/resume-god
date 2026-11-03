@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   HttpException,
   HttpStatus,
   Inject,
@@ -13,21 +14,26 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AppDb } from "../db/client";
 import { APP_DB } from "../db/database.module";
 import { tailorJobs } from "../db/schema";
+import { TailoringInputError } from "../pipeline/jd-parser";
 import { TrackerRepository } from "../tracker/tracker.repository";
-import { TailorService, type TailorStage } from "./tailor.service";
+import {
+  TailorService,
+  type TailorResult,
+  type TailorStage,
+} from "./tailor.service";
+import {
+  JOB_CONCURRENCY,
+  JOB_HEARTBEAT_MS,
+  JOB_LIST_LIMIT,
+  JOB_MAX_ACTIVE_PER_USER,
+  JOB_MAX_ATTEMPTS,
+  JOB_POLL_MS,
+  JOB_ROLE_LOOKUP_LIMIT,
+  JOB_STALE_AFTER_MS,
+} from "./constants/tailor.constants";
+import type { TailorJobRequestDto } from "./dto/tailor.dto";
 
-export interface TailorJobInput {
-  jd_text: string;
-  target_title?: string;
-  max_achievements?: number;
-  provider?: string;
-  font?: string;
-  summary?: string;
-  company_id?: number;
-  company_name?: string;
-  job_url?: string;
-  role_status?: string;
-}
+export type TailorJobInput = TailorJobRequestDto;
 
 interface Account {
   id: string;
@@ -37,18 +43,6 @@ interface Account {
 
 type Stored = { account: Omit<Account, "id">; request: TailorJobInput };
 type JobRow = typeof tailorJobs.$inferSelect;
-
-/** How many jobs one server runs at once. */
-const CONCURRENCY = 2;
-/** Finds queued work missed by the direct kick, such as after a restart. */
-const POLL_MS = 5_000;
-const HEARTBEAT_MS = 30_000;
-/** A running job this quiet belonged to a process that died. */
-const STALE_AFTER_MS = 2 * 60_000;
-const MAX_ATTEMPTS = 3;
-/** Per user, so one account can't fill the queue or spend unbounded LLM calls. */
-const MAX_ACTIVE_JOBS = 10;
-const LIST_LIMIT = 50;
 
 /**
  * Tailoring as a background job. Postgres is the queue: jobs survive restarts,
@@ -68,7 +62,7 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.poller = setInterval(() => void this.drain(), POLL_MS);
+    this.poller = setInterval(() => void this.drain(), JOB_POLL_MS);
     void this.drain();
   }
 
@@ -79,41 +73,100 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueue(account: Account, request: TailorJobInput) {
-    // Fail now rather than in the background if the company is wrong.
-    let companyLabel = request.company_name?.trim() ?? "";
-    if (request.company_id != null) {
-      companyLabel = (
-        await this.tracker.getCompany(account.id, request.company_id)
-      ).name;
-    }
+    const companyLabel = await this.companyLabel(account.id, request);
+    await this.assertCapacity(account.id);
+    const [row] = await this.db
+      .insert(tailorJobs)
+      .values(this.newJob(account, request, companyLabel))
+      .returning();
+    this.logger.log(`Job ${row.id} queued: ${this.describeRow(row)}`);
+    void this.drain();
+    return this.summary(row);
+  }
+
+  /**
+   * A failed job is replaced, not reset: a process that lost this job and is
+   * somehow still running can't write its old result over the new attempt.
+   */
+  async retry(account: Account, jobId: string, edited?: TailorJobInput) {
+    const [failed] = await this.db
+      .select()
+      .from(tailorJobs)
+      .where(and(eq(tailorJobs.id, jobId), eq(tailorJobs.userId, account.id)));
+    if (!failed) throw new NotFoundException("Job not found");
+    const request = edited ?? (failed.input as Stored).request;
+    const companyLabel = await this.companyLabel(account.id, request);
+    await this.assertCapacity(account.id);
+    const row = await this.db.transaction(async (tx) => {
+      // The status check makes a double click fail instead of queueing twice.
+      const removed = await tx
+        .delete(tailorJobs)
+        .where(
+          and(
+            eq(tailorJobs.id, jobId),
+            eq(tailorJobs.userId, account.id),
+            eq(tailorJobs.status, "failed"),
+          ),
+        )
+        .returning({ id: tailorJobs.id });
+      if (removed.length === 0) {
+        throw new ConflictException("Only a failed job can be retried.");
+      }
+      const [created] = await tx
+        .insert(tailorJobs)
+        .values(this.newJob(account, request, companyLabel))
+        .returning();
+      return created;
+    });
+    this.logger.log(
+      `Job ${row.id} queued as a retry of ${jobId}${edited ? " with edits" : ""}: ${this.describeRow(row)}`,
+    );
+    void this.drain();
+    return this.summary(row);
+  }
+
+  /** Fail now rather than in the background if the company is wrong. */
+  private async companyLabel(userId: string, request: TailorJobInput) {
+    if (request.company_id == null) return request.company_name?.trim() ?? "";
+    return (await this.tracker.getCompany(userId, request.company_id)).name;
+  }
+
+  private async assertCapacity(userId: string) {
     const [{ active }] = await this.db
       .select({ active: sql<number>`count(*)::int` })
       .from(tailorJobs)
       .where(
         and(
-          eq(tailorJobs.userId, account.id),
+          eq(tailorJobs.userId, userId),
           inArray(tailorJobs.status, ["queued", "running"]),
         ),
       );
-    if (active >= MAX_ACTIVE_JOBS) {
+    if (active >= JOB_MAX_ACTIVE_PER_USER) {
       throw new HttpException(
         `You already have ${active} jobs in progress. Wait for one to finish.`,
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    const { id, display_name, email } = account;
-    const [row] = await this.db
-      .insert(tailorJobs)
-      .values({
-        id: crypto.randomUUID(),
-        userId: id,
-        targetTitle: request.target_title?.trim() ?? "",
-        companyLabel,
-        input: { account: { display_name, email }, request } satisfies Stored,
-      })
-      .returning();
-    void this.drain();
-    return this.summary(row);
+  }
+
+  private newJob(
+    { id, display_name, email }: Account,
+    request: TailorJobInput,
+    companyLabel: string,
+  ) {
+    return {
+      id: crypto.randomUUID(),
+      userId: id,
+      targetTitle: request.target_title?.trim() ?? "",
+      companyLabel,
+      input: { account: { display_name, email }, request } satisfies Stored,
+    };
+  }
+
+  /** Quoted because titles are user text and must not forge log lines. Job
+   * descriptions and emails stay out of the logs. */
+  private describeRow(row: JobRow): string {
+    return `user=${row.userId} title=${JSON.stringify(row.targetTitle)} company=${JSON.stringify(row.companyLabel)}`;
   }
 
   async list(userId: string) {
@@ -122,7 +175,7 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
       .from(tailorJobs)
       .where(eq(tailorJobs.userId, userId))
       .orderBy(desc(tailorJobs.createdAt))
-      .limit(LIST_LIMIT);
+      .limit(JOB_LIST_LIMIT);
     return { jobs: rows.map((row) => this.summary(row)) };
   }
 
@@ -132,7 +185,29 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
       .from(tailorJobs)
       .where(and(eq(tailorJobs.id, jobId), eq(tailorJobs.userId, userId)));
     if (!row) throw new NotFoundException("Job not found");
-    return { ...this.summary(row), result: row.result };
+    return {
+      ...this.summary(row),
+      request: (row.input as Stored).request,
+      result: row.result,
+    };
+  }
+
+  /** Keeps reviewed edits with the job, alongside what the run recorded. */
+  async saveReview(
+    userId: string,
+    jobId: string,
+    review: {
+      plan: Record<string, unknown>;
+      resume_data: unknown;
+      validation: unknown;
+    },
+  ) {
+    await this.db
+      .update(tailorJobs)
+      .set({
+        result: sql`coalesce(${tailorJobs.result}, '{}'::jsonb) || ${JSON.stringify(review)}::jsonb`,
+      })
+      .where(and(eq(tailorJobs.id, jobId), eq(tailorJobs.userId, userId)));
   }
 
   /** The list stays light: no job description, plan, or resume. */
@@ -154,7 +229,7 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
 
   /** Start jobs until the queue is empty or this process is at capacity. */
   async drain(): Promise<void> {
-    while (!this.stopped && this.running.size < CONCURRENCY) {
+    while (!this.stopped && this.running.size < JOB_CONCURRENCY) {
       let job: JobRow | undefined;
       try {
         job = await this.claim();
@@ -173,9 +248,9 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
 
   private async claim(): Promise<JobRow | undefined> {
     // Computed here: the columns hold UTC, which the database's now() may not.
-    const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString();
+    const cutoff = new Date(Date.now() - JOB_STALE_AFTER_MS).toISOString();
     const stale = sql`${tailorJobs.status} = 'running' and ${tailorJobs.heartbeatAt} < ${cutoff}::timestamp`;
-    await this.db
+    const abandoned = await this.db
       .update(tailorJobs)
       .set({
         status: "failed",
@@ -183,7 +258,13 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
         error: "This job kept stopping unexpectedly. Try again.",
         finishedAt: new Date(),
       })
-      .where(sql`${stale} and ${tailorJobs.attempts} >= ${MAX_ATTEMPTS}`);
+      .where(sql`${stale} and ${tailorJobs.attempts} >= ${JOB_MAX_ATTEMPTS}`)
+      .returning({ id: tailorJobs.id });
+    for (const { id } of abandoned) {
+      this.logger.error(
+        `Job ${id} failed: stopped responding ${JOB_MAX_ATTEMPTS} times`,
+      );
+    }
     const [row] = await this.db
       .update(tailorJobs)
       .set({
@@ -212,6 +293,10 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
 
   private async run(job: JobRow): Promise<void> {
     const { account, request } = job.input as Stored;
+    const startedAt = Date.now();
+    this.logger.log(
+      `Job ${job.id} started (attempt ${job.attempts}): ${this.describeRow(job)}`,
+    );
     // A reclaimed job has a higher attempt count, so if this process turns out
     // to be alive after all, its late writes match nothing.
     const owned = and(
@@ -224,10 +309,11 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
         .set({ heartbeatAt: new Date() })
         .where(owned)
         .catch(() => undefined);
-    }, HEARTBEAT_MS);
+    }, JOB_HEARTBEAT_MS);
     try {
       const result = await this.tailor.tailor(job.userId, account, request, {
         onStage: (stage: TailorStage) => {
+          this.logger.log(`Job ${job.id} stage: ${stage}`);
           void this.db
             .update(tailorJobs)
             .set({ stage, heartbeatAt: new Date() })
@@ -252,6 +338,8 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
           finishedAt: new Date(),
         })
         .where(owned);
+      this.logFinished(job.id, Date.now() - startedAt, request, result);
+      if (warning) this.logger.warn(`Job ${job.id}: ${warning}`);
     } catch (error) {
       await this.db
         .update(tailorJobs)
@@ -270,14 +358,43 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /** Expected failures explain themselves; anything else stays in the logs. */
+  /** Fallbacks and title differences don't fail a job, but explain its result. */
+  private logFinished(
+    jobId: string,
+    elapsedMs: number,
+    request: TailorJobInput,
+    result: TailorResult,
+  ) {
+    const stages = Object.entries(result.providers);
+    const used = stages.map(([stage, info]) => `${stage}=${info.used}`);
+    this.logger.log(
+      `Job ${jobId} succeeded in ${elapsedMs}ms (${used.join(" ")})`,
+    );
+    for (const [stage, info] of stages) {
+      if (info.fallback_error) {
+        this.logger.warn(
+          `Job ${jobId} ${stage} fell back: ${info.fallback_error}`,
+        );
+      }
+    }
+    const requested = request.target_title?.trim();
+    const parse = result.plan.job_description_parse as
+      { role_title?: unknown } | undefined;
+    const found = String(parse?.role_title ?? "").trim();
+    if (requested && found && requested !== found) {
+      this.logger.log(
+        `Job ${jobId} title: requested ${JSON.stringify(requested)}, job description reads ${JSON.stringify(found)}`,
+      );
+    }
+  }
+
+  /** Every failure is logged. Only ones written for the user are shown to them. */
   private describe(jobId: string, error: unknown): string {
-    if (error instanceof HttpException) return error.message;
-    // The pipeline has no HTTP types, but this one is written for the user.
     if (
-      error instanceof Error &&
-      error.message.startsWith("Target title does not match")
+      error instanceof HttpException ||
+      error instanceof TailoringInputError
     ) {
+      this.logger.warn(`Job ${jobId} failed: ${error.message}`);
       return error.message;
     }
     this.logger.error(
@@ -304,7 +421,7 @@ export class TailorJobsService implements OnModuleInit, OnModuleDestroy {
       const existing = (
         await this.tracker.listRoles(userId, {
           company_id: companyId,
-          limit: 500,
+          limit: JOB_ROLE_LOOKUP_LIMIT,
           offset: 0,
         })
       ).find((role) => role.target_title === title);

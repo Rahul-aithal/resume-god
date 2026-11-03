@@ -1,10 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import { Logger } from "@nestjs/common";
 import { eq } from "drizzle-orm";
+
+import { TailoringInputError } from "../src/pipeline/jd-parser";
 
 import {
   TEST_DATABASE_URL,
   USER_A,
   USER_B,
+  firstMessage,
   get,
   json,
   makeApp,
@@ -130,13 +134,19 @@ describe("background tailoring", () => {
     expect((await get(jobsUrl(b.base, jobs[0].id))).status).toBe(404);
   });
 
-  async function withTailorThrowing(message: string, run: () => Promise<void>) {
+  async function withTailorThrowing(
+    failure: string | Error,
+    run: () => Promise<void>,
+  ) {
     const { TailorService } = await import("../src/tailor/tailor.service");
     // Either app's worker may claim the job.
     const services = [a, b].map((app) => app.app.get(TailorService));
     const originals = services.map((service) => service.tailor);
     for (const service of services) {
-      service.tailor = () => Promise.reject(new Error(message));
+      service.tailor = () =>
+        Promise.reject(
+          typeof failure === "string" ? new Error(failure) : failure,
+        );
     }
     try {
       await run();
@@ -148,8 +158,8 @@ describe("background tailoring", () => {
   }
 
   it("records a failure the user can act on", async () => {
-    const reason = "Target title does not match the job description: try again";
-    await withTailorThrowing(reason, async () => {
+    const reason = "Add a Target title and retry.";
+    await withTailorThrowing(new TailoringInputError(reason), async () => {
       const done = await finished((await start({})).id);
       expect(done.status).toBe("failed");
       expect(done.error).toBe(reason);
@@ -162,6 +172,151 @@ describe("background tailoring", () => {
       const done = await finished((await start({})).id);
       expect(done.status).toBe("failed");
       expect(done.error).toBe("Tailoring failed unexpectedly. Try again.");
+    });
+  });
+
+  it("doesn't fail because the job calls itself something else", async () => {
+    const provider = {
+      name: "gemini",
+      completeJson: () => Promise.resolve({ role_title: "Software Developer" }),
+    };
+    const { LlmProviderChainService } =
+      await import("../src/llm/provider-chain.service");
+    const chains = [a, b].map((app) => app.app.get(LlmProviderChainService));
+    const originals = chains.map((chain) => chain.resolveList);
+    for (const chain of chains) {
+      chain.resolveList = (() => ({ providers: [provider] })) as never;
+    }
+    try {
+      const done = await finished(
+        (await start({ provider: "auto", target_title: "SDE" })).id,
+      );
+      expect(done.status).toBe("succeeded");
+      expect(done.result?.plan.target_title).toBe("SDE");
+      expect(done.result?.plan.job_description_parse.role_title).toBe(
+        "Software Developer",
+      );
+    } finally {
+      chains.forEach((chain, index) => {
+        chain.resolveList = originals[index];
+      });
+    }
+  });
+
+  it("logs failures, including ones the user is shown", async () => {
+    const warn = spyOn(Logger.prototype, "warn").mockImplementation(() => {});
+    const error = spyOn(Logger.prototype, "error").mockImplementation(() => {});
+    try {
+      let shown = "";
+      await withTailorThrowing(new TailoringInputError("Fix it"), async () => {
+        shown = (await finished((await start({})).id)).id;
+      });
+      expect(warn).toHaveBeenCalledWith(`Job ${shown} failed: Fix it`);
+      let hidden = "";
+      await withTailorThrowing("connection to 10.0.0.5 refused", async () => {
+        hidden = (await finished((await start({})).id)).id;
+      });
+      expect(
+        error.mock.calls.some(
+          ([line]) =>
+            String(line).startsWith(`Job ${hidden} failed:`) &&
+            String(line).includes("10.0.0.5"),
+        ),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
+  describe("retry", () => {
+    const retryUrl = (id: string, base = a.base) =>
+      `${jobsUrl(base, id)}/retry`;
+
+    async function failedJob(input: Record<string, unknown> = {}) {
+      let id = "";
+      await withTailorThrowing("boom", async () => {
+        id = (await finished((await start(input)).id)).id;
+      });
+      return id;
+    }
+
+    it("gives a failed job's input back, for editing", async () => {
+      const id = await failedJob({ target_title: "SDE", max_achievements: 4 });
+      const job = await json<Job & { request: Record<string, unknown> }>(
+        await get(jobsUrl(a.base, id)),
+      );
+      expect(job.request).toMatchObject({
+        jd_text: JD,
+        target_title: "SDE",
+        max_achievements: 4,
+      });
+    });
+
+    it("runs the same input again, with no body at all", async () => {
+      const id = await failedJob({ target_title: "SDE" });
+      const response = await send(retryUrl(id), "POST");
+      expect(response.status).toBe(202);
+      const done = await finished((await json<Job>(response)).id);
+      expect(done.status).toBe("succeeded");
+      expect(done.target_title).toBe("SDE");
+      expect(done.error).toBeNull();
+      // Replaced, so the list doesn't keep the failure next to its retry.
+      expect((await get(jobsUrl(a.base, id))).status).toBe(404);
+    });
+
+    it("runs edited input", async () => {
+      const id = await failedJob({ target_title: "SDE" });
+      const response = await send(retryUrl(id), "POST", {
+        request: {
+          provider: "deterministic",
+          jd_text: JD,
+          target_title: "Software Developer",
+        },
+      });
+      expect(response.status).toBe(202);
+      const done = await finished((await json<Job>(response)).id);
+      expect(done.status).toBe("succeeded");
+      expect(done.result?.plan.target_title).toBe("Software Developer");
+    });
+
+    it("leaves the failed job alone when the edits are invalid", async () => {
+      const id = await failedJob();
+      const response = await send(retryUrl(id), "POST", {
+        request: { jd_text: "" },
+      });
+      expect(response.status).toBe(400);
+      expect(firstMessage(await json<any>(response))).toContain(
+        "request.jd_text",
+      );
+      expect((await json<Job>(await get(jobsUrl(a.base, id)))).status).toBe(
+        "failed",
+      );
+    });
+
+    it("only retries failed jobs", async () => {
+      const job = await start({});
+      await finished(job.id);
+      expect((await send(retryUrl(job.id), "POST")).status).toBe(409);
+    });
+
+    it("queues one job when retry is clicked twice", async () => {
+      const id = await failedJob();
+      const responses = await Promise.all([
+        send(retryUrl(id), "POST"),
+        send(retryUrl(id), "POST"),
+      ]);
+      const statuses = responses.map((response) => response.status).sort();
+      expect(statuses).toEqual([202, 409]);
+      const job = await json<Job>(
+        responses.find((response) => response.status === 202)!,
+      );
+      await finished(job.id);
+    });
+
+    it("can't retry another user's job", async () => {
+      const id = await failedJob();
+      expect((await send(retryUrl(id, b.base), "POST")).status).toBe(404);
     });
   });
 
@@ -340,9 +495,39 @@ describe("review to PDF, as the web app sends it", () => {
       resume_data: result.resume_data,
     });
     // Typst isn't installed everywhere the tests run.
-    expect([200, 500]).toContain(response.status);
+    expect([200, 503]).toContain(response.status);
     if (response.status === 200) {
       expect(response.headers.get("content-type")).toBe("application/pdf");
     }
+  });
+
+  it("keeps reviewed edits with the job", async () => {
+    const job = await finished((await start({})).id);
+    const id = Object.keys(job.result?.plan.rewrites)[0];
+    const response = await send(`${a.base}/api/review`, "POST", {
+      plan: job.result?.plan,
+      edits: { rewritten_text: { [id]: "Built admin tools in TypeScript" } },
+      job_id: job.id,
+    });
+    expect(response.status).toBe(201);
+    const reopened = await json<Job>(await get(jobsUrl(a.base, job.id)));
+    expect(reopened.result?.plan.rewrites[id].rewritten_text).toBe(
+      "Built admin tools in TypeScript",
+    );
+    expect(reopened.result?.providers).toBeDefined();
+    expect(JSON.stringify(reopened.result?.resume_data)).toContain(
+      "Built admin tools in TypeScript",
+    );
+  });
+
+  it("explains how to fix a missing Typst", async () => {
+    const { TypstRenderService } =
+      await import("../src/tailor/typst-render.service");
+    const service = new TypstRenderService({
+      get: () => "/nonexistent/typst",
+    } as never);
+    const failure = await service.compilePdf({} as never).catch((e) => e);
+    expect(failure.getStatus()).toBe(503);
+    expect(failure.message).toContain("set TYPST_BIN");
   });
 });

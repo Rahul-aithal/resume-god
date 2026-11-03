@@ -4,8 +4,26 @@
  */
 
 import type { LlmProvider } from "../llm/llm-provider.interface";
+import {
+  JD_MAX_KEYWORDS,
+  JD_MAX_RESPONSIBILITIES,
+  JD_PARSE_VERSION,
+  JD_RESPONSIBILITY_MIN_LENGTH,
+  JD_ROLE_TITLE_MAX_LENGTH,
+} from "./constants/pipeline.constants";
+import {
+  CANDIDATE_HEADING,
+  EXTRA_UNKNOWN,
+  NICE_HEADING,
+  ROLE_AS_AN,
+  ROLE_LABEL,
+  ROLE_LOOKING_FOR,
+  SENIORITIES,
+  SUBHEADING,
+  TECH_TERM,
+} from "./constants/jd-patterns.constants";
 
-export const JD_PARSE_VERSION = 1;
+export { JD_PARSE_VERSION };
 
 export interface ProfileSkill {
   id: string;
@@ -45,48 +63,6 @@ export interface ParsedJobDescription {
 }
 
 // ---- regexes (parity with python) ----
-
-const CANDIDATE_HEADING =
-  /^(?:key\s+)?(?:responsibilities|requirements|qualifications|skills|required\s+skills(?:\s+and\s+qualifications)?|desired\s+skills|nice[- ]to[- ]have|preferred qualifications|what you'?ll do|what you'?ll work on)[A-Za-z &/-]*$/i;
-const NICE_HEADING =
-  /^(?:desired\s+skills|nice[- ]to[- ]have|preferred qualifications|bonus|plus)\b/i;
-const ROLE_LABEL = /^(?:job\s+(?:role|title)|role|position)\s*:\s*(.+)$/i;
-const TECH_TERM =
-  /(?<![\w])(?:\.NET|C\+\+|C#|Node\.js|React(?:\.js)?|Next\.js|Express(?:\.js)?|TypeScript|JavaScript|Python|Java|Go|Golang|PostgreSQL|MySQL|MongoDB|SQL|NoSQL|REST(?:ful)?\s+APIs?|GitHub(?:\s+Actions)?|Git|Docker|Kubernetes|Azure|AWS|GCP|RAG|LLM|MCP|Flask|FastAPI|Angular|Vue(?:\.js)?|Svelte|Tailwind(?:\s+CSS)?|GraphQL|Kafka|RabbitMQ|Redis|Jest|Vitest)(?![\w])/gi;
-const EXTRA_UNKNOWN = [
-  ".NET",
-  "C#",
-  "Java",
-  "MySQL",
-  "Angular",
-  "Vue.js",
-  "Svelte",
-  "Azure",
-  "Kubernetes",
-  "RAG",
-  "Flask",
-  "AWS",
-  "GCP",
-  "GraphQL",
-  "Kafka",
-  "Spring Boot",
-  "Django",
-  "LangChain",
-  "OpenAI",
-  "Terraform",
-  "Jenkins",
-];
-const SENIORITIES: Array<[RegExp, string]> = [
-  [/\bprincipal\b/, "principal"],
-  [/\bstaff\b/, "staff"],
-  [/\bsenior\b/, "senior"],
-  [/\bjunior\b/, "junior"],
-  [/\bentry.level\b/, "entry-level"],
-  [/\bearly.career\b/, "early-career"],
-  [/\bsde[ -]?1\b/, "SDE1 / junior"],
-  [/\bsoftware engineer i\b/, "junior"],
-  [/\blead(?:er|ership)?\b/, "lead"],
-];
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -182,6 +158,9 @@ function knownMatches(
 
 // ---- role title / seniority / responsibilities ----
 
+/** A problem the user can fix by changing their input, worded for them. */
+export class TailoringInputError extends Error {}
+
 export function roleTitle(
   jobDescription: string,
   targetTitle?: string | null,
@@ -192,28 +171,24 @@ export function roleTitle(
     const match = ROLE_LABEL.exec(stripped);
     if (match) return match[1].trim();
   }
-  const explicit =
-    /^as\s+(?:an?\s+)?([A-Za-z][A-Za-z /. -]{2,60}?)(?:\s+at\b|,|\.|\()/gim.exec(
-      jobDescription,
-    );
+  const explicit = ROLE_AS_AN.exec(jobDescription);
   if (explicit) return explicit[1].trim();
-  const lookingFor =
-    /looking for\s+(?:talented\s+)?([A-Za-z][A-Za-z /.-]{2,60}?Developers)\b/i.exec(
-      jobDescription,
-    );
+  const lookingFor = ROLE_LOOKING_FOR.exec(jobDescription);
   if (lookingFor) return lookingFor[1].trim();
   for (const line of jobDescription.split("\n")) {
     const stripped = line.trim();
     if (
       stripped &&
-      stripped.length <= 80 &&
+      stripped.length <= JD_ROLE_TITLE_MAX_LENGTH &&
       !/[:.]|^(?:company|about|location|experience)\b/i.test(stripped) &&
       /engineer|developer|manager|analyst|designer|architect/i.test(stripped)
     ) {
       return stripped;
     }
   }
-  throw new Error("Could not determine role title; pass --target-title");
+  throw new TailoringInputError(
+    "Couldn't find a job title in the description. Add a Target title and retry.",
+  );
 }
 
 export function seniority(
@@ -260,15 +235,19 @@ export function responsibilities(jobDescription: string): string[] {
       continue;
     }
     if (!stripped) continue;
-    if (active && stripped.length > 15 && !rows.includes(stripped)) {
+    if (
+      active &&
+      stripped.length > JD_RESPONSIBILITY_MIN_LENGTH &&
+      !rows.includes(stripped)
+    ) {
       rows.push(stripped);
-    } else if (active && /^[A-Z][A-Za-z /,&+-]{3,60}$/.test(stripped)) {
+    } else if (active && SUBHEADING.test(stripped)) {
       continue;
     } else if (active) {
       active = false;
     }
   }
-  return rows.slice(0, 12);
+  return rows.slice(0, JD_MAX_RESPONSIBILITIES);
 }
 
 // ---- unknown skills ----
@@ -319,7 +298,7 @@ function keywords(
     ...matches.nice.map((row) => row.name),
     ...unknown.map((row) => row.name),
   ];
-  return [...new Set(values)].slice(0, 20);
+  return [...new Set(values)].slice(0, JD_MAX_KEYWORDS);
 }
 
 // ---- LLM prompt (parity with python _prompt) ----
@@ -442,7 +421,7 @@ export async function parseJobDescription(
     version: JD_PARSE_VERSION,
     provider: provider.name,
     provider_requested: requested,
-    role_title: String(raw.role_title || options?.targetTitle || "").trim(),
+    role_title: String(raw.role_title || roleTitleValue).trim(),
     seniority: String(raw.seniority || "not specified"),
     must_have_skills: mustParsed.rows,
     nice_to_have_skills: niceParsed.rows,
@@ -453,10 +432,10 @@ export async function parseJobDescription(
     keywords: (Array.isArray(raw.keywords)
       ? raw.keywords.map(String)
       : []
-    ).slice(0, 20),
+    ).slice(0, JD_MAX_KEYWORDS),
     key_responsibilities: (Array.isArray(raw.key_responsibilities)
       ? raw.key_responsibilities.map(String)
       : []
-    ).slice(0, 12),
+    ).slice(0, JD_MAX_RESPONSIBILITIES),
   };
 }

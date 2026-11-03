@@ -1,11 +1,13 @@
 import { Injectable } from "@nestjs/common";
 
 import { LlmError } from "./extract-json";
+import {
+  LLM_RETRY_DELAYS_MS,
+  LLM_RETRYABLE_STATUS,
+  LLM_TIMEOUT_MS,
+} from "./constants/llm.constants";
 
-/** Mirrors python RETRYABLE_STATUS / RETRY_DELAYS. */
-const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
-const DEFAULT_RETRY_DELAYS_MS = [1000, 2000, 4000];
-const TIMEOUT_MS = 90_000;
+/** Mirrors python LLM_RETRYABLE_STATUS / RETRY_DELAYS. */
 
 export interface LlmHttpResponse {
   status: number;
@@ -22,7 +24,7 @@ export class LlmHttpService {
     url: string,
     headers: Record<string, string>,
     payload: unknown,
-    retryDelays: number[] = DEFAULT_RETRY_DELAYS_MS,
+    retryDelays: number[] = LLM_RETRY_DELAYS_MS,
   ): Promise<unknown> {
     let lastError: unknown = null;
     for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
@@ -31,12 +33,12 @@ export class LlmHttpService {
           method: "POST",
           headers: { "content-type": "application/json", ...headers },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
+          signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
         });
         if (!response.ok) {
           lastError = new LlmError(`HTTP ${response.status} from ${url}`);
           if (
-            RETRYABLE_STATUS.has(response.status) &&
+            LLM_RETRYABLE_STATUS.has(response.status) &&
             attempt < retryDelays.length
           ) {
             await sleep(retryDelays[attempt]);

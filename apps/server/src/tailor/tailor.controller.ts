@@ -12,15 +12,16 @@ import {
 import type { Request, Response } from "express";
 
 import type { SessionUser } from "../auth/session.guard";
-import {
-  renderTypstRequestSchema,
-  reviewRequestSchema,
-  tailorJobRequestSchema,
-  tailorRequestSchema,
-} from "./tailor.schemas";
-import { TailorJobsService, type TailorJobInput } from "./tailor-jobs.service";
+import { TailorJobsService } from "./tailor-jobs.service";
 import { TailorService } from "./tailor.service";
 import { TypstRenderService } from "./typst-render.service";
+import {
+  RenderRequestDto,
+  RetryTailorJobDto,
+  ReviewRequestDto,
+  TailorJobRequestDto,
+  TailorRequestDto,
+} from "./dto/tailor.dto";
 
 interface AuthedRequest extends Request {
   user: SessionUser;
@@ -35,18 +36,7 @@ export class TailorController {
   ) {}
 
   @Post("tailor")
-  async tailor(
-    @Req() request: AuthedRequest,
-    @Body({ schema: tailorRequestSchema })
-    body: {
-      jd_text: string;
-      target_title?: string;
-      max_achievements?: number;
-      provider?: string;
-      font?: string;
-      summary?: string;
-    },
-  ) {
+  async tailor(@Req() request: AuthedRequest, @Body() body: TailorRequestDto) {
     return await this.tailorService.tailor(
       request.user.id,
       { display_name: request.user.display_name, email: request.user.email },
@@ -59,7 +49,7 @@ export class TailorController {
   @HttpCode(202)
   async createJob(
     @Req() request: AuthedRequest,
-    @Body({ schema: tailorJobRequestSchema }) body: TailorJobInput,
+    @Body() body: TailorJobRequestDto,
   ) {
     return await this.jobs.enqueue(request.user, body);
   }
@@ -74,18 +64,21 @@ export class TailorController {
     return await this.jobs.get(request.user.id, jobId);
   }
 
+  /** Queues a failed job again, optionally with edited input. */
+  @Post("tailor/jobs/:jobId/retry")
+  @HttpCode(202)
+  async retryJob(
+    @Req() request: AuthedRequest,
+    @Param("jobId") jobId: string,
+    @Body() body: RetryTailorJobDto,
+  ) {
+    return await this.jobs.retry(request.user, jobId, body.request);
+  }
+
   @Post("review")
   async reviewEdits(
     @Req() request: AuthedRequest,
-    @Body({ schema: reviewRequestSchema })
-    body: {
-      plan: Record<string, unknown>;
-      edits: {
-        rewritten_text: Record<string, string>;
-        summary?: string | null;
-      };
-      font?: string;
-    },
+    @Body() body: ReviewRequestDto,
   ) {
     const { rejected } = await this.tailorService.reviewEdits(
       request.user.id,
@@ -99,6 +92,13 @@ export class TailorController {
       body.plan,
       { font: body.font, summary: body.edits.summary },
     );
+    if (body.job_id) {
+      await this.jobs.saveReview(request.user.id, body.job_id, {
+        plan: body.plan,
+        resume_data,
+        validation,
+      });
+    }
     return {
       plan: body.plan,
       rejected_edits: rejected,
@@ -112,10 +112,7 @@ export class TailorController {
   async renderTypst(
     @Req() request: AuthedRequest,
     @Res({ passthrough: false }) response: Response,
-    @Body({ schema: renderTypstRequestSchema })
-    body: {
-      resume_data: Record<string, unknown>;
-    },
+    @Body() body: RenderRequestDto,
   ) {
     const pdf = await this.typst.compilePdf(
       body.resume_data as unknown as Parameters<

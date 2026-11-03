@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,21 +11,18 @@ import {
 import type { Request } from "express";
 
 import { Public, type SessionUser } from "../auth/session.guard";
-import {
-  KNOWN_PROVIDERS,
-  type ProviderName,
-} from "../llm/llm-provider.interface";
 import { ApiKeyService } from "./api-key.service";
 import {
   apiKeysResponseSchema,
   providersStatusResponseSchema,
-  saveApiKeySchema,
-  type SaveApiKeyInput,
-  updateSettingsSchema,
   userSettingsResponseSchema,
-  type UpdateSettingsInput,
 } from "./settings.schema";
 import { SettingsService } from "./settings.service";
+import {
+  ProviderParamDto,
+  SaveApiKeyDto,
+  UpdateSettingsDto,
+} from "./dto/settings.dto";
 
 interface AuthedRequest extends Request {
   user: SessionUser;
@@ -38,15 +34,6 @@ export class SettingsController {
     private readonly settings: SettingsService,
     private readonly apiKeys: ApiKeyService,
   ) {}
-
-  private provider(value: string): ProviderName {
-    if (!(KNOWN_PROVIDERS as string[]).includes(value)) {
-      throw new BadRequestException(
-        `Unknown provider. Use ${KNOWN_PROVIDERS.join(", ")}.`,
-      );
-    }
-    return value as ProviderName;
-  }
 
   @Public()
   @Get("health")
@@ -76,15 +63,11 @@ export class SettingsController {
   @SerializeOptions({ schema: apiKeysResponseSchema })
   async saveApiKey(
     @Req() request: AuthedRequest,
-    @Param("provider") provider: string,
-    @Body({ schema: saveApiKeySchema }) body: SaveApiKeyInput,
+    @Param() { provider }: ProviderParamDto,
+    @Body() body: SaveApiKeyDto,
   ) {
     return {
-      keys: await this.apiKeys.save(
-        request.user.id,
-        this.provider(provider),
-        body.api_key,
-      ),
+      keys: await this.apiKeys.save(request.user.id, provider, body.api_key),
     };
   }
 
@@ -92,10 +75,10 @@ export class SettingsController {
   @SerializeOptions({ schema: apiKeysResponseSchema })
   async removeApiKey(
     @Req() request: AuthedRequest,
-    @Param("provider") provider: string,
+    @Param() { provider }: ProviderParamDto,
   ) {
     return {
-      keys: await this.apiKeys.remove(request.user.id, this.provider(provider)),
+      keys: await this.apiKeys.remove(request.user.id, provider),
     };
   }
 
@@ -103,7 +86,7 @@ export class SettingsController {
   @SerializeOptions({ schema: userSettingsResponseSchema })
   async updateSettings(
     @Req() request: AuthedRequest,
-    @Body({ schema: updateSettingsSchema }) body: UpdateSettingsInput,
+    @Body() body: UpdateSettingsDto,
   ) {
     return await this.settings.update(request.user.id, body);
   }

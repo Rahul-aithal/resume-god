@@ -10,6 +10,7 @@ import {
   authUser,
   authVerification,
 } from "../db/schema";
+import { LOCAL_TRUSTED_ORIGINS } from "./constants/auth.constants";
 
 export type AuthInstance = ReturnType<typeof createAuth>;
 
@@ -45,13 +46,9 @@ export function createAuth(db: AppDb, options: AuthOptions) {
     baseURL: baseURL || undefined,
     trustedOrigins: [
       ...new Set(
-        [
-          baseURL,
-          "http://localhost:5173",
-          "http://localhost:3000",
-          "http://localhost:8080",
-          ...options.trustedOrigins,
-        ].filter(Boolean),
+        [baseURL, ...LOCAL_TRUSTED_ORIGINS, ...options.trustedOrigins].filter(
+          Boolean,
+        ),
       ),
     ],
     secret: options.secret || undefined,

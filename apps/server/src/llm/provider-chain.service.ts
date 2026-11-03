@@ -10,11 +10,13 @@ import {
   type LlmProvider,
   type ProviderName,
 } from "./llm-provider.interface";
+import { DEFAULT_PROVIDER_ORDER } from "./constants/llm.constants";
 
 export type { LlmProvider, ProviderName };
 
 /** A user's own keys, used in place of the server's for that provider. */
 export type UserKeys = Partial<Record<ProviderName, string>>;
+export type UserModels = Partial<Record<ProviderName, string | undefined>>;
 
 export type ProviderChoice =
   "auto" | "deterministic" | ProviderName | (string & {});
@@ -64,7 +66,7 @@ export class LlmProviderChainService {
     const filtered = source.filter((item): item is ProviderName =>
       (KNOWN_PROVIDERS as string[]).includes(item),
     );
-    return filtered.length > 0 ? filtered : ["gemini", "glm", "openai"];
+    return filtered.length > 0 ? filtered : [...DEFAULT_PROVIDER_ORDER];
   }
 
   hasServerKey(name: ProviderName): boolean {
@@ -82,24 +84,28 @@ export class LlmProviderChainService {
     return Boolean(userKeys?.[name]) || this.hasServerKey(name);
   }
 
-  private make(name: ProviderName, userKeys?: UserKeys): LlmProvider {
+  private make(
+    name: ProviderName,
+    userKeys?: UserKeys,
+    models?: UserModels,
+  ): LlmProvider {
     const cfg = this.cfg;
     switch (name) {
       case "glm":
         return GlmProvider.create(this.http, {
           glmKey: userKeys?.glm || cfg.glmKey,
-          glmModel: cfg.glmModel,
+          glmModel: models?.glm || cfg.glmModel,
           glmApiUrl: cfg.glmApiUrl,
         });
       case "gemini":
         return GeminiProvider.create(this.http, {
           geminiKey: userKeys?.gemini || cfg.geminiKey,
-          geminiModel: cfg.geminiModel,
+          geminiModel: models?.gemini || cfg.geminiModel,
         });
       case "openai":
         return OpenAiProvider.create(this.http, {
           openaiKey: userKeys?.openai || cfg.openaiKey,
-          openaiModel: cfg.openaiModel,
+          openaiModel: models?.openai || cfg.openaiModel,
           openaiApiUrl: cfg.openaiApiUrl,
         });
     }
@@ -116,6 +122,7 @@ export class LlmProviderChainService {
     choice: ProviderChoice | null,
     orderOverride?: string[],
     userKeys?: UserKeys,
+    models?: UserModels,
   ): {
     providers: LlmProvider[];
     requested: string;
@@ -130,7 +137,7 @@ export class LlmProviderChainService {
       for (const candidate of this.defaultOrder(orderOverride)) {
         if (!this.hasKey(candidate, userKeys)) continue;
         try {
-          providers.push(this.make(candidate, userKeys));
+          providers.push(this.make(candidate, userKeys, models));
         } catch {
           continue;
         }
@@ -140,12 +147,12 @@ export class LlmProviderChainService {
     if ((KNOWN_PROVIDERS as string[]).includes(choice)) {
       const name = choice as ProviderName;
       try {
-        const first = this.make(name, userKeys);
+        const first = this.make(name, userKeys, models);
         const rest: LlmProvider[] = [];
         for (const candidate of this.defaultOrder(orderOverride)) {
           if (candidate === name || !this.hasKey(candidate, userKeys)) continue;
           try {
-            rest.push(this.make(candidate, userKeys));
+            rest.push(this.make(candidate, userKeys, models));
           } catch {
             continue;
           }

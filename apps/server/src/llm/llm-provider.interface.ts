@@ -1,8 +1,6 @@
 import { LlmError } from "./extract-json";
 
-export type ProviderName = "gemini" | "glm" | "openai";
-
-export const KNOWN_PROVIDERS: ProviderName[] = ["gemini", "glm", "openai"];
+export { KNOWN_PROVIDERS, type ProviderName } from "./constants/llm.constants";
 
 export interface LlmProvider {
   /** Any string: concrete providers use known names; test fakes may not. */

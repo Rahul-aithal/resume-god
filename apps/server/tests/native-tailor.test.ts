@@ -113,7 +113,6 @@ describe("native tailor → render flow", () => {
   });
 
   it("renders resume.pdf via Typst from resume-data", async () => {
-    // Typst binary ships in the python venv of this repo.
     const tailor = await send(`${base}/api/tailor`, "POST", {
       jd_text:
         "Software Developer\nWe need a developer with TypeScript and React.js experience.",
@@ -124,9 +123,8 @@ describe("native tailor → render flow", () => {
       resume_data: body.resume_data,
     });
     if (response.status !== 200) {
-      // Typst binary unavailable in this environment → 500 is acceptable
-      // as long as it is an explicit render failure, not a crash.
-      expect(response.status).toBe(500);
+      // Typst isn't installed everywhere the tests run.
+      expect(response.status).toBe(503);
       return;
     }
     expect(response.headers.get("content-type")).toBe("application/pdf");

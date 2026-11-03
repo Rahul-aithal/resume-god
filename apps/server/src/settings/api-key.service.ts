@@ -16,6 +16,7 @@ import {
   type ProviderName,
 } from "../llm/llm-provider.interface";
 import { decryptApiKey, encryptApiKey } from "./api-key-crypto";
+import { API_KEY_VISIBLE_SUFFIX } from "./constants/settings.constants";
 
 export type ApiKeySource = "user" | "server" | "none";
 
@@ -110,7 +111,7 @@ export class ApiKeyService {
         this.secret,
         this.context(userId, provider),
       ),
-      last4: apiKey.slice(-4),
+      last4: apiKey.slice(-API_KEY_VISIBLE_SUFFIX),
       updatedAt: new Date(),
     };
     await this.db

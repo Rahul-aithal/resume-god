@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import postgres from "postgres";
 
 import * as schema from "./schema";
+import { DB_POOL_MAX_CONNECTIONS } from "./constants/db.constants";
 
 export type AppDb = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -34,7 +35,7 @@ export function getDb(explicitUrl?: string): AppDb {
   if (globalStore.__resumeGodDb && globalStore.__resumeGodDbUrl === url) {
     return globalStore.__resumeGodDb;
   }
-  const client = postgres(url, { max: 10 });
+  const client = postgres(url, { max: DB_POOL_MAX_CONNECTIONS });
   const db = drizzle(client, { schema });
   globalStore.__resumeGodDb = db;
   globalStore.__resumeGodDbUrl = url;

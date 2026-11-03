@@ -12,6 +12,7 @@ import { searchDocs, type SearchDoc } from "../graph/graph-search";
 import {
   LlmProviderChainService,
   type LlmProvider,
+  type UserModels,
 } from "../llm/provider-chain.service";
 import {
   parseJobDescription,
@@ -65,6 +66,18 @@ export class TailorService {
       .filter(Boolean);
   }
 
+  /** Only models the user changed: an untouched default leaves env in charge. */
+  private async modelsFor(userId: string): Promise<UserModels> {
+    const settings = await this.settings.get(userId);
+    const changed = (value: string, standard: string) =>
+      value && value !== standard ? value : undefined;
+    return {
+      gemini: changed(settings.gemini_model, DEFAULT_SETTINGS.gemini_model),
+      glm: changed(settings.glm_model, DEFAULT_SETTINGS.glm_model),
+      openai: changed(settings.openai_model, DEFAULT_SETTINGS.openai_model),
+    };
+  }
+
   private async semanticSearch(
     userId: string,
     query: string,
@@ -104,7 +117,7 @@ export class TailorService {
   ): Promise<TailorResult> {
     const order = await this.orderFor(userId);
     const userKeys = await this.settings.userKeys(userId);
-    const choice = input.provider ?? "auto";
+    const choice = input.provider ?? DEFAULT_PROVIDER_CHOICE;
     const font = firstNonEmptyInput(
       input.font,
       (await this.settings.get(userId)).default_font,
@@ -116,7 +129,8 @@ export class TailorService {
 
     // ---- 1. parse ----
     options.onStage?.("parsing");
-    const parseList = this.chain.resolveList(choice, order, userKeys);
+    const models = await this.modelsFor(userId);
+    const parseList = this.chain.resolveList(choice, order, userKeys, models);
     const parseResult = await this.chain.attemptEach(
       parseList.providers,
       async (provider: LlmProvider | null) => {
@@ -147,9 +161,11 @@ export class TailorService {
     options.onStage?.("planning");
     const profileView = await this.profileView(userId);
     const plan = await buildTailoringPlan(profileView, input.jd_text, {
-      // User-requested title wins; buildTailoringPlan 400s on mismatch.
-      targetTitle: firstNonEmptyInput(input.target_title, parsed.role_title),
-      maxAchievements: input.max_achievements ?? 10,
+      // The title is a label: the user's wording wins over the job's.
+      targetTitle: cleanTitle(
+        firstNonEmptyInput(input.target_title, parsed.role_title),
+      ),
+      maxAchievements: input.max_achievements ?? DEFAULT_MAX_ACHIEVEMENTS,
       parsedJobDescription: parsed as unknown as Record<string, unknown>,
       searchBullets: (query, limit) =>
         this.semanticSearch(userId, query, limit),
@@ -158,7 +174,7 @@ export class TailorService {
 
     // ---- 3. rewrite (LLM, deterministic fallback) ----
     options.onStage?.("rewriting");
-    const rewriteList = this.chain.resolveList(choice, order, userKeys);
+    const rewriteList = this.chain.resolveList(choice, order, userKeys, models);
     const rewriteResult = await this.chain.attemptEach(
       rewriteList.providers,
       async (provider) => {
@@ -260,6 +276,8 @@ export class TailorService {
           id: String(item.id),
           text: String(item.text ?? ""),
           part_of: item.part_of ? String(item.part_of) : undefined,
+          metrics: item.metrics as string[] | undefined,
+          skills: item.skills as string[] | undefined,
         })),
       },
       (sourceText, rewrittenText, achievement) => {
@@ -327,13 +345,13 @@ export class TailorService {
         record.issues = [];
       } else {
         rejected.push(achievementId);
-        record.rewritten_text = sourceText;
+        record.rewritten_text = groundedText(
+          sourceText,
+          achievement.metrics as string[] | undefined,
+        );
         record.used_rewrite = false;
         record.validation_passed = false;
-        record.issues = verdict.issues.map(
-          (issue) =>
-            `review edit rejected, fell back to reviewed original: ${issue}`,
-        );
+        record.issues = verdict.issues;
       }
     }
     const usedCount = Object.values(rewrites).filter(
@@ -355,10 +373,20 @@ export class TailorService {
   }
 }
 
-import { validateRewrite } from "../pipeline/rewrite";
+import { DEFAULT_SETTINGS } from "../settings/constants/settings.constants";
+import { groundedText, validateRewrite } from "../pipeline/rewrite";
+import {
+  DEFAULT_MAX_ACHIEVEMENTS,
+  DEFAULT_PROVIDER_CHOICE,
+} from "./constants/tailor.constants";
 
 function lazyRewrite() {
   return { validateRewrite };
+}
+
+/** Pasted titles often bring the quote or full stop next to them. */
+function cleanTitle(title: string): string {
+  return title.replace(/["'`.,;:]+$/, "").trim();
 }
 
 function firstNonEmptyInput(...values: Array<string | undefined>): string {

@@ -7,6 +7,12 @@ import {
   Max,
   Min,
 } from "class-validator";
+import {
+  DEFAULT_PORT,
+  MAX_PORT,
+  MIN_PORT,
+  NODE_ENVIRONMENTS,
+} from "./constants/config.constants";
 
 /**
  * Single declaration of every environment variable: shape, coercion,
@@ -28,13 +34,13 @@ const splitList = ({ value }: { value: unknown }) =>
     : [];
 
 export class EnvironmentVariables {
-  @IsIn(["development", "production", "test"])
+  @IsIn(NODE_ENVIRONMENTS)
   NODE_ENV: string = "development";
 
   @IsNumber()
-  @Min(1)
-  @Max(65535)
-  PORT: number = 3000;
+  @Min(MIN_PORT)
+  @Max(MAX_PORT)
+  PORT: number = DEFAULT_PORT;
 
   @IsOptional()
   @IsString()

@@ -72,7 +72,7 @@ describe("buildTailoringPlan", () => {
   it("builds an auditable plan", () => {
     expect(plan.version).toBe(2);
     expect(plan.phase).toBe("tailoring_plan");
-    expect(plan.selection_policy_version).toBe(3);
+    expect(plan.selection_policy_version).toBe(4);
     expect(plan.profile).toEqual({ reviewed: false });
     expect(plan.target_title).toBe("Software Developer");
   });
@@ -142,13 +142,16 @@ describe("buildTailoringPlan", () => {
     }
   });
 
-  it("rejects title mismatch, empty JD, and bad max", async () => {
-    await expect(
-      buildTailoringPlan(profile, JD, {
-        targetTitle: "Platform Engineer",
-        parsedJobDescription: parsed,
-      }),
-    ).rejects.toThrow(/Target title does not match/);
+  it("keeps the requested title when the job calls itself something else", async () => {
+    const renamed = await buildTailoringPlan(profile, JD, {
+      targetTitle: "SDE",
+      parsedJobDescription: parsed,
+    });
+    expect(renamed.target_title).toBe("SDE");
+    expect(renamed.job_description_parse.role_title).toBe("Software Developer");
+  });
+
+  it("rejects an empty JD and a bad max", async () => {
     await expect(
       buildTailoringPlan(profile, "   ", { targetTitle: "X" }),
     ).rejects.toThrow(/Job description must not be empty/);

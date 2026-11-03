@@ -5,6 +5,11 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { APP_DB } from "../db/database.module";
 import type { AppDb } from "../db/client";
 import { applications, artifacts, companies, roles } from "../db/schema";
+import {
+  DASHBOARD_RECENT_ARTIFACTS,
+  DASHBOARD_RECENT_ROLES,
+  DEFAULT_ROLE_STATUS,
+} from "./constants/tracker.constants";
 
 type CompanyRow = typeof companies.$inferSelect;
 type RoleRow = typeof roles.$inferSelect;
@@ -169,7 +174,7 @@ export class TrackerRepository {
           userId,
           companyId: input.company_id,
           targetTitle: input.target_title,
-          status: input.status ?? "applied",
+          status: input.status ?? DEFAULT_ROLE_STATUS,
           jobUrl: input.job_url ?? "",
           salary: input.salary ?? "",
           location: input.location ?? "",
@@ -278,13 +283,13 @@ export class TrackerRepository {
       .innerJoin(companies, eq(roles.companyId, companies.id))
       .where(eq(roles.userId, userId))
       .orderBy(desc(roles.createdAt))
-      .limit(10);
+      .limit(DASHBOARD_RECENT_ROLES);
     const artifactRows = await this.db
       .select()
       .from(artifacts)
       .where(eq(artifacts.userId, userId))
       .orderBy(desc(artifacts.createdAt))
-      .limit(8);
+      .limit(DASHBOARD_RECENT_ARTIFACTS);
     return {
       company_count: Number(companyCountRow?.count ?? 0),
       role_count: Number(roleCountRow?.count ?? 0),
