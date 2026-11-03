@@ -83,6 +83,39 @@ describe("contact fallback + soft skills + docx export", () => {
     expect(missing.status).toBe(404);
   });
 
+  it("downloads a tailored resume as Word, with its own bullets", async () => {
+    const response = await send(`${base}/api/render/docx`, "POST", {
+      resume_data: {
+        contact: {
+          name: "Ada",
+          location: "",
+          phone: "",
+          email: "ada@example.com",
+          linkedin: "https://linkedin.com/in/ada",
+          github: "ada",
+          personal_site: "",
+        },
+        summary: "Tailored summary",
+        skills: [{ category: "Languages", names: ["TypeScript"] }],
+        sections: [
+          {
+            kind: "experience",
+            organization: "Acme",
+            role: "Intern",
+            bullets: ["Shipped 8 releases"],
+          },
+        ],
+        education: [],
+        certifications: [],
+        soft_skills: [],
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("wordprocessingml");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect(String.fromCharCode(bytes[0], bytes[1])).toBe("PK");
+  });
+
   it("exports resume.docx with real content", async () => {
     // Seed minimal graph content first.
     await send(`${base}/api/graph/skills`, "POST", {

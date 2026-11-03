@@ -4,14 +4,7 @@ import { eq } from "drizzle-orm";
 import { APP_DB } from "../db/database.module";
 import type { AppDb } from "../db/client";
 import { userSettings } from "../db/schema";
-
-export const DEFAULT_SETTINGS = {
-  llm_order: "gemini,glm,openai",
-  gemini_model: "gemini-3-flash-preview",
-  glm_model: "glm-4.6",
-  openai_model: "gpt-4.1",
-  default_font: "Calibri",
-};
+import { DEFAULT_SETTINGS } from "./constants/settings.constants";
 
 export type UserSettings = typeof DEFAULT_SETTINGS;
 

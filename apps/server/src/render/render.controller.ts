@@ -1,10 +1,24 @@
-import { Controller, Get, Header, Req, Res } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from "@nestjs/common";
 import type { Request, Response } from "express";
 
 import type { SessionUser } from "../auth/session.guard";
 import { GraphRepository } from "../graph/graph.repository";
 import { GraphService } from "../graph/graph.service";
-import { buildResumeDocx } from "./docx-exporter";
+import { RenderRequestDto } from "../tailor/dto/tailor.dto";
+import {
+  buildResumeDocx,
+  docxFromResume,
+  type DocxResume,
+} from "./docx-exporter";
 
 interface AuthedRequest extends Request {
   user: SessionUser;
@@ -16,6 +30,27 @@ export class RenderController {
     private readonly graph: GraphService,
     private readonly repo: GraphRepository,
   ) {}
+
+  /** The tailored resume under review, as Word. */
+  @Post("docx")
+  @HttpCode(200)
+  @Header(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  )
+  async tailoredDocx(
+    @Res({ passthrough: false }) response: Response,
+    @Body() body: RenderRequestDto,
+  ) {
+    const buffer = await docxFromResume(
+      body.resume_data as unknown as DocxResume,
+    );
+    response.setHeader(
+      "Content-Disposition",
+      'attachment; filename="resume.docx"',
+    );
+    response.send(buffer);
+  }
 
   /** resume.docx built from the user's knowledge graph. */
   @Get("docx")

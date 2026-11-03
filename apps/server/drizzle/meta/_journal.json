@@ -15,6 +15,13 @@
       "when": 1793533133724,
       "tag": "0001_flowery_gertrude_yorkes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793534997995,
+      "tag": "0002_regular_rictor",
+      "breakpoints": true
     }
   ]
 }

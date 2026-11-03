@@ -1,6 +1,6 @@
 import { Module, Provider } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { APP_FILTER, APP_GUARD } from "@nestjs/core";
+import { APP_FILTER, APP_GUARD, APP_PIPE } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 
 import { validate } from "./config/validate";
@@ -9,6 +9,11 @@ import { AuthHandle, createAuth } from "./auth/auth.server";
 import { AuthController } from "./auth/auth.controller";
 import { SessionGuard } from "./auth/session.guard";
 import { AllExceptionsFilter } from "./common/all-exceptions.filter";
+import {
+  THROTTLE_LIMIT,
+  THROTTLE_TTL_MS,
+} from "./common/constants/app.constants";
+import { createValidationPipe } from "./common/validation/validation.pipe";
 import { DatabaseModule, APP_DB } from "./db/database.module";
 import { GraphModule } from "./graph/graph.module";
 import type { AppDb } from "./db/client";
@@ -36,7 +41,9 @@ export function buildAppModule(
         envFilePath: [".env.local", ".env"],
         validate,
       }),
-      ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+      ThrottlerModule.forRoot([
+        { ttl: THROTTLE_TTL_MS, limit: THROTTLE_LIMIT },
+      ]),
       DatabaseModule,
       GraphModule,
       LlmModule,
@@ -46,6 +53,7 @@ export function buildAppModule(
     ],
     controllers: [AuthController, RenderController],
     providers: [
+      { provide: APP_PIPE, useFactory: createValidationPipe },
       {
         provide: AuthHandle,
         inject: [APP_DB, ConfigService],

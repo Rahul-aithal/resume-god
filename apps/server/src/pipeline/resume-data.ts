@@ -6,9 +6,15 @@
  */
 
 import { firstNonEmpty } from "../config/env-utils";
+import {
+  DEFAULT_FONT,
+  RESUME_DATA_VERSION,
+  SUMMARY_MAX_FEATURED_SKILLS,
+  SUMMARY_MAX_NAMED_PROJECTS,
+} from "./constants/pipeline.constants";
+import { groundedText } from "./rewrite";
 
-export const RESUME_DATA_VERSION = 1;
-export const DEFAULT_FONT = "Calibri";
+export { DEFAULT_FONT, RESUME_DATA_VERSION };
 
 export interface ContactView {
   name: string;
@@ -128,15 +134,16 @@ export function defaultSummary(
   }
   const projects = selectedByKind.get("project") ?? [];
   if (projects.length > 0) {
-    anchors.push(
-      `project work across ${joinNames(projects.map((node) => String(node.name)))}`,
-    );
+    const named = projects
+      .slice(0, SUMMARY_MAX_NAMED_PROJECTS)
+      .map((node) => String(node.name));
+    anchors.push(`projects including ${joinNames(named)}`);
   }
 
   const featured = selectedSkillRows(plan, profile)
     .map((row) => row.name)
-    .slice(0, 8);
-  return `${plan.target_title} with ${anchors.join(" and ")}. Core skills: ${featured.join(", ")}.`;
+    .slice(0, SUMMARY_MAX_FEATURED_SKILLS);
+  return `${plan.target_title} with ${anchors.join(", and ")}. Core skills: ${featured.join(", ")}.`;
 }
 
 // ---- resume-data builder ----
@@ -144,6 +151,7 @@ export function defaultSummary(
 export function buildResumeData(
   plan: {
     target_title: string;
+    generated_summary?: string;
     matched_skills: Array<{ id: string }>;
     selected_achievements: Array<{ id: string; skills: string[] }>;
     selected_parents: Array<{
@@ -185,10 +193,17 @@ export function buildResumeData(
     if (record?.used_rewrite && record.rewritten_text) {
       return String(record.rewritten_text);
     }
-    return String(achievements.get(achievementId)?.text ?? "");
+    const achievement = achievements.get(achievementId);
+    return groundedText(
+      String(achievement?.text ?? ""),
+      achievement?.metrics as string[] | undefined,
+    );
   };
 
-  const summary = options.summary?.trim() || defaultSummary(plan, profile);
+  const summary =
+    options.summary?.trim() ||
+    plan.generated_summary ||
+    defaultSummary(plan, profile);
 
   const sections = plan.selected_parents.map((reference) => {
     const node = parents.get(reference.id) ?? {};
@@ -265,12 +280,23 @@ export interface ValidationResult {
 export function validateResumeData(
   data: ResumeData,
   profile: {
-    achievements: Array<{ id: string; text: string; part_of?: string }>;
+    achievements: Array<{
+      id: string;
+      text: string;
+      part_of?: string;
+      metrics?: string[];
+      skills?: string[];
+    }>;
   },
   validateRewriteFn: (
     sourceText: string,
     rewrittenText: string,
-    achievement: { text: string; part_of?: string },
+    achievement: {
+      text: string;
+      part_of?: string;
+      metrics?: string[];
+      skills?: string[];
+    },
   ) => { passed: boolean; issues: string[] },
 ): ValidationResult {
   const achievements = new Map(
@@ -308,13 +334,17 @@ export function validateResumeData(
       const verdict = validateRewriteFn(sourceText, text, {
         text: sourceText,
         part_of: achievement.part_of as string | undefined,
+        metrics: achievement.metrics,
+        skills: achievement.skills,
       });
       if (verdict.passed) {
         keptIds.push(achievementId);
-        keptTexts.push(text);
+        keptTexts.push(...text.split("\n").filter((line) => line.trim()));
       } else {
         keptIds.push(achievementId);
-        keptTexts.push(sourceText);
+        keptTexts.push(
+          ...groundedText(sourceText, achievement.metrics).split("\n"),
+        );
         fallback.push(achievementId);
         issues.push(
           `bullet fell back to reviewed original ${achievementId}: ${verdict.issues.join("; ")}`,

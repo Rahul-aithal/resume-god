@@ -13,6 +13,7 @@ function lazyPage(loader: () => Promise<{ default: ComponentType }>): LazyPage {
 const LoginPage = lazyPage(() => import("./pages/LoginPage"));
 const DashboardPage = lazyPage(() => import("./pages/DashboardPage"));
 const NewJobPage = lazyPage(() => import("./pages/NewJobPage"));
+const TailoringPage = lazyPage(() => import("./pages/TailoringPage"));
 const ReviewPage = lazyPage(() => import("./pages/ReviewPage"));
 const CompaniesPage = lazyPage(() => import("./pages/CompaniesPage"));
 const CompanyDetailPage = lazyPage(() => import("./pages/CompanyDetailPage"));
@@ -45,6 +46,7 @@ export default function App() {
               preloadMap={{
                 "/": DashboardPage.preload,
                 "/jobs/new": NewJobPage.preload,
+                "/tailoring": TailoringPage.preload,
                 "/review": ReviewPage.preload,
                 "/companies": CompaniesPage.preload,
                 "/graph": GraphPage.preload,
@@ -57,6 +59,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route index element={<DashboardPage />} />
             <Route path="/jobs/new" element={<NewJobPage />} />
+            <Route path="/tailoring" element={<TailoringPage />} />
             <Route path="/review" element={<ReviewPage />} />
             <Route path="/companies" element={<CompaniesPage />} />
             <Route path="/companies/:id" element={<CompanyDetailPage />} />

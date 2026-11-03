@@ -14,30 +14,32 @@ import type { Request } from "express";
 
 import type { SessionUser } from "../auth/session.guard";
 import {
-  achievementCreateSchema,
   achievementResponseSchema,
-  contactUpdateSchema,
-  softSkillCreateSchema,
-  softSkillUpdateSchema,
-  achievementUpdateSchema,
-  certificationCreateSchema,
-  certificationUpdateSchema,
-  educationCreateSchema,
-  educationUpdateSchema,
-  impliesEdgeSchema,
-  parentCreateSchema,
-  parentUpdateSchema,
   graphProjectionSchema,
-  graphImportSchema,
-  graphSearchQuerySchema,
-  exploreQuerySchema,
   reviewResponseSchema,
   contactResponseSchema,
-  skillCreateSchema,
   skillResponseSchema,
-  skillUpdateSchema,
 } from "./graph.schemas";
 import { GraphService } from "./graph.service";
+import {
+  AchievementCreateDto,
+  AchievementUpdateDto,
+  CertificationCreateDto,
+  CertificationUpdateDto,
+  ContactUpdateDto,
+  EducationCreateDto,
+  EducationUpdateDto,
+  ExploreQueryDto,
+  GraphImportDto,
+  GraphSearchQueryDto,
+  ImpliesEdgeDto,
+  ParentCreateDto,
+  ParentUpdateDto,
+  SkillCreateDto,
+  SkillUpdateDto,
+  SoftSkillCreateDto,
+  SoftSkillUpdateDto,
+} from "./dto/graph.dto";
 
 interface AuthedRequest extends Request {
   user: SessionUser;
@@ -56,8 +58,7 @@ export class GraphController {
   @Get("search")
   async search(
     @Req() request: AuthedRequest,
-    @Query({ schema: graphSearchQuerySchema })
-    query: { q: string; limit: number },
+    @Query() query: GraphSearchQueryDto,
   ) {
     return await this.graph.search(request.user.id, query.q, query.limit);
   }
@@ -77,15 +78,7 @@ export class GraphController {
   @Put("contact")
   async updateContact(
     @Req() request: AuthedRequest,
-    @Body({ schema: contactUpdateSchema })
-    body: {
-      location?: string;
-      phone?: string;
-      email?: string;
-      linkedin?: string;
-      github?: string;
-      personal_site?: string;
-    },
+    @Body() body: ContactUpdateDto,
   ) {
     return await this.graph.updateContact(request.user.id, body);
   }
@@ -100,12 +93,7 @@ export class GraphController {
   @Post("soft-skills")
   async createSoftSkill(
     @Req() request: AuthedRequest,
-    @Body({ schema: softSkillCreateSchema })
-    body: {
-      id?: string;
-      name: string;
-      detail?: string;
-    },
+    @Body() body: SoftSkillCreateDto,
   ) {
     return await this.graph.createSoftSkill(request.user.id, body);
   }
@@ -114,11 +102,7 @@ export class GraphController {
   async updateSoftSkill(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: softSkillUpdateSchema })
-    body: {
-      name?: string;
-      detail?: string;
-    },
+    @Body() body: SoftSkillUpdateDto,
   ) {
     return await this.graph.updateSoftSkill(request.user.id, id, body);
   }
@@ -149,13 +133,7 @@ export class GraphController {
   @Post("skills")
   async createSkill(
     @Req() request: AuthedRequest,
-    @Body({ schema: skillCreateSchema })
-    body: {
-      id?: string;
-      name: string;
-      category?: string;
-      aliases?: string[];
-    },
+    @Body() body: SkillCreateDto,
   ) {
     return await this.graph.createSkill(request.user.id, body);
   }
@@ -170,12 +148,7 @@ export class GraphController {
   async updateSkill(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: skillUpdateSchema })
-    body: {
-      name?: string;
-      category?: string;
-      aliases?: string[];
-    },
+    @Body() body: SkillUpdateDto,
   ) {
     return await this.graph.updateSkill(request.user.id, id, body);
   }
@@ -190,7 +163,7 @@ export class GraphController {
   async implies(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Query({ schema: exploreQuerySchema }) query: { hops: 1 | 2 },
+    @Query() query: ExploreQueryDto,
   ) {
     return {
       skill_id: id,
@@ -202,7 +175,7 @@ export class GraphController {
   @Post("skill-implies")
   async addImplies(
     @Req() request: AuthedRequest,
-    @Body({ schema: impliesEdgeSchema }) body: { from: string; to: string },
+    @Body() body: ImpliesEdgeDto,
   ) {
     await this.graph.addImplies(request.user.id, body.from, body.to);
     return { status: "added", ...body };
@@ -223,15 +196,7 @@ export class GraphController {
   @Post("parents")
   async createParent(
     @Req() request: AuthedRequest,
-    @Body({ schema: parentCreateSchema })
-    body: {
-      id?: string;
-      kind: "experience" | "project";
-      name: string;
-      title?: string;
-      url?: string;
-      date_range?: string;
-    },
+    @Body() body: ParentCreateDto,
   ) {
     return await this.graph.createParent(request.user.id, body);
   }
@@ -240,13 +205,7 @@ export class GraphController {
   async updateParent(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: parentUpdateSchema })
-    body: {
-      name?: string;
-      title?: string;
-      url?: string;
-      date_range?: string;
-    },
+    @Body() body: ParentUpdateDto,
   ) {
     return await this.graph.updateParent(request.user.id, id, body);
   }
@@ -262,15 +221,7 @@ export class GraphController {
   @Post("achievements")
   async createAchievement(
     @Req() request: AuthedRequest,
-    @Body({ schema: achievementCreateSchema })
-    body: {
-      id?: string;
-      parent_id: string;
-      text: string;
-      date_range?: string;
-      skills?: string[];
-      metrics?: string[];
-    },
+    @Body() body: AchievementCreateDto,
   ) {
     return await this.graph.createAchievement(request.user.id, body);
   }
@@ -285,14 +236,7 @@ export class GraphController {
   async updateAchievement(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: achievementUpdateSchema })
-    body: {
-      parent_id?: string;
-      text?: string;
-      date_range?: string;
-      skills?: string[];
-      metrics?: string[];
-    },
+    @Body() body: AchievementUpdateDto,
   ) {
     return await this.graph.updateAchievement(request.user.id, id, body);
   }
@@ -311,13 +255,7 @@ export class GraphController {
   @Post("education")
   async createEducation(
     @Req() request: AuthedRequest,
-    @Body({ schema: educationCreateSchema })
-    body: {
-      id?: string;
-      institution: string;
-      credential?: string;
-      date_range?: string;
-    },
+    @Body() body: EducationCreateDto,
   ) {
     return await this.graph.createEducation(request.user.id, body);
   }
@@ -326,12 +264,7 @@ export class GraphController {
   async updateEducation(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: educationUpdateSchema })
-    body: {
-      institution?: string;
-      credential?: string;
-      date_range?: string;
-    },
+    @Body() body: EducationUpdateDto,
   ) {
     return await this.graph.updateEducation(request.user.id, id, body);
   }
@@ -348,13 +281,7 @@ export class GraphController {
   @Post("certifications")
   async createCertification(
     @Req() request: AuthedRequest,
-    @Body({ schema: certificationCreateSchema })
-    body: {
-      id?: string;
-      name: string;
-      issuer?: string;
-      issued_on?: string;
-    },
+    @Body() body: CertificationCreateDto,
   ) {
     return await this.graph.createCertification(request.user.id, body);
   }
@@ -363,12 +290,7 @@ export class GraphController {
   async updateCertification(
     @Req() request: AuthedRequest,
     @Param("id") id: string,
-    @Body({ schema: certificationUpdateSchema })
-    body: {
-      name?: string;
-      issuer?: string;
-      issued_on?: string;
-    },
+    @Body() body: CertificationUpdateDto,
   ) {
     return await this.graph.updateCertification(request.user.id, id, body);
   }
@@ -387,12 +309,7 @@ export class GraphController {
   @Post("import")
   async importGraph(
     @Req() request: AuthedRequest,
-    @Body({ schema: graphImportSchema })
-    body: {
-      format: "yaml" | "json";
-      content: string;
-      mode: "replace" | "merge";
-    },
+    @Body() body: GraphImportDto,
   ) {
     return await this.graph.importProfile(request.user.id, body);
   }

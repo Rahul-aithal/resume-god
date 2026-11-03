@@ -18,15 +18,21 @@ import {
 } from "docx";
 
 import type { GraphRepository } from "../graph/graph.repository";
-
-const FONT = "Arial";
-const SIZE_NORMAL = 22; // half-points → 11pt
-const SIZE_NAME = 36; // 18pt
-const SIZE_SECTION = 24; // 12pt
-const DARK = "1A1A1A";
-const MID = "333333";
-const LIGHT = "666666";
-const LINK = "1155CC";
+import {
+  DOCX_BULLET_INDENT,
+  DOCX_COLOR_DARK,
+  DOCX_COLOR_LIGHT,
+  DOCX_COLOR_LINK,
+  DOCX_COLOR_MID,
+  DOCX_FONT,
+  DOCX_PAGE_MARGIN,
+  DOCX_PAGE_SIZE,
+  DOCX_SECTION_RULE,
+  DOCX_SIZE_NAME,
+  DOCX_SIZE_NORMAL,
+  DOCX_SIZE_SECTION,
+  DOCX_SPACING,
+} from "./constants/docx.constants";
 
 function run(
   text: string,
@@ -39,28 +45,34 @@ function run(
 ): TextRun {
   return new TextRun({
     text,
-    font: FONT,
-    size: opts.size ?? SIZE_NORMAL,
+    font: DOCX_FONT,
+    size: opts.size ?? DOCX_SIZE_NORMAL,
     bold: opts.bold,
     italics: opts.italics,
-    color: opts.color ?? MID,
+    color: opts.color ?? DOCX_COLOR_MID,
   });
 }
 
 function sectionHeader(text: string): Paragraph {
   return new Paragraph({
-    spacing: { before: 180, after: 60 },
+    spacing: DOCX_SPACING.sectionHeading,
     border: {
-      bottom: { style: BorderStyle.SINGLE, size: 6, color: "2C2C2C", space: 2 },
+      bottom: { style: BorderStyle.SINGLE, ...DOCX_SECTION_RULE },
     },
-    children: [run(text, { bold: true, color: DARK, size: SIZE_SECTION })],
+    children: [
+      run(text, {
+        bold: true,
+        color: DOCX_COLOR_DARK,
+        size: DOCX_SIZE_SECTION,
+      }),
+    ],
   });
 }
 
 function bullet(runs: TextRun[] | string): Paragraph {
   return new Paragraph({
     numbering: { reference: "bullets", level: 0 },
-    spacing: { before: 35, after: 35 },
+    spacing: DOCX_SPACING.bullet,
     children: Array.isArray(runs) ? runs : [run(runs)],
   });
 }
@@ -71,9 +83,9 @@ function link(text: string, url: string): ExternalHyperlink {
     children: [
       new TextRun({
         text,
-        font: FONT,
-        size: SIZE_NORMAL,
-        color: LINK,
+        font: DOCX_FONT,
+        size: DOCX_SIZE_NORMAL,
+        color: DOCX_COLOR_LINK,
         underline: { type: UnderlineType.SINGLE },
       }),
     ],
@@ -87,21 +99,29 @@ function roleHeader(
   dates: string,
 ): Paragraph {
   return new Paragraph({
-    spacing: { before: 140, after: 40 },
+    spacing: DOCX_SPACING.entryHeading,
     children: [
-      run(company, { bold: true, color: DARK }),
-      run("  |  ", { color: LIGHT }),
-      run(title, { italics: true }),
-      run("  |  ", { color: LIGHT }),
-      run([location, dates].filter(Boolean).join("  |  "), { color: LIGHT }),
+      run(company, { bold: true, color: DOCX_COLOR_DARK }),
+      ...(title
+        ? [
+            run("  |  ", { color: DOCX_COLOR_LIGHT }),
+            run(title, { italics: true }),
+          ]
+        : []),
+      ...[location, dates]
+        .filter(Boolean)
+        .map((part) => run(`  |  ${part}`, { color: DOCX_COLOR_LIGHT })),
     ],
   });
 }
 
 function techStack(label: string, value: string): Paragraph {
   return new Paragraph({
-    spacing: { before: 40, after: 40 },
-    children: [run(`${label}: `, { bold: true, color: DARK }), run(value)],
+    spacing: DOCX_SPACING.entryDetail,
+    children: [
+      run(`${label}: `, { bold: true, color: DOCX_COLOR_DARK }),
+      run(value),
+    ],
   });
 }
 
@@ -112,16 +132,18 @@ function projectHeader(
   url: string,
 ): Paragraph {
   const children: Array<TextRun | ExternalHyperlink> = [
-    run(name, { bold: true, color: DARK }),
+    run(name, { bold: true, color: DOCX_COLOR_DARK }),
   ];
   if (stack)
-    children.push(run(`  (${stack})`, { color: LIGHT, italics: true }));
-  if (date) children.push(run(`  |  ${date}`, { color: LIGHT }));
+    children.push(
+      run(`  (${stack})`, { color: DOCX_COLOR_LIGHT, italics: true }),
+    );
+  if (date) children.push(run(`  |  ${date}`, { color: DOCX_COLOR_LIGHT }));
   if (url) {
     children.push(run("  "));
     children.push(link(url, url));
   }
-  return new Paragraph({ spacing: { before: 140, after: 40 }, children });
+  return new Paragraph({ spacing: DOCX_SPACING.entryHeading, children });
 }
 
 export interface DocxContact {
@@ -134,6 +156,23 @@ export interface DocxContact {
   personal_site: string;
 }
 
+/** Normalized like the PDF template: full URLs, bare domains, or handles. */
+function asUrl(value: string, base = "https://"): string {
+  return /^https?:\/\//.test(value) ? value : `${base}${value}`;
+}
+
+/** The fields a resume needs, whichever path produced them. */
+export interface DocxResume {
+  contact: DocxContact;
+  summary?: string;
+  skills: Array<{ category: string; names: string[] }>;
+  sections: Array<Record<string, unknown>>;
+  education: Array<Record<string, unknown>>;
+  certifications: Array<Record<string, unknown>>;
+  soft_skills: Array<{ name: string; detail: string }>;
+}
+
+/** The whole graph as a resume, for GET /api/render/docx. */
 export async function buildResumeDocx(
   userId: string,
   repo: GraphRepository,
@@ -142,111 +181,180 @@ export async function buildResumeDocx(
   const skills = await repo.listSkills(userId);
   const parents = await repo.listParents(userId);
   const achievements = await repo.listAchievements(userId);
-  const education = await repo.listEducation(userId);
-  const certifications = await repo.listCertifications(userId);
-  const softSkills = await repo.listSoftSkills(userId);
-
   const skillNames = new Map(skills.map((skill) => [skill.id, skill.name]));
+  const bulletsOf = (parentId: string) =>
+    achievements
+      .filter((row) => row.parentId === parentId)
+      .map((row) => row.text);
+
+  const byCategory = new Map<string, string[]>();
+  for (const skill of skills) {
+    const category = skill.category || "Other";
+    byCategory.set(category, [...(byCategory.get(category) ?? []), skill.name]);
+  }
+
+  const sections: DocxResume["sections"] = [];
+  for (const parent of parents) {
+    if (parent.kind === "experience") {
+      sections.push({
+        kind: "experience",
+        organization: parent.name,
+        role: parent.title,
+        dates: parent.dateRange,
+        bullets: bulletsOf(parent.id),
+      });
+    } else if (parent.kind === "project") {
+      sections.push({
+        kind: "project",
+        name: parent.name,
+        tech_stack: (await repo.skillsForParent(userId, parent.id))
+          .map((id) => skillNames.get(id) ?? id)
+          .join(", "),
+        dates: parent.dateRange,
+        url: parent.url,
+        bullets: bulletsOf(parent.id),
+      });
+    }
+  }
+
+  return docxFromResume({
+    contact,
+    skills: [...byCategory]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([category, names]) => ({ category, names })),
+    sections,
+    education: (await repo.listEducation(userId)).map((row) => ({
+      degree: row.credential,
+      institution: row.institution,
+      dates: row.dateRange,
+    })),
+    certifications: await repo.listCertifications(userId),
+    soft_skills: await repo.listSoftSkills(userId),
+  });
+}
+
+export async function docxFromResume(resume: DocxResume): Promise<Buffer> {
+  const { contact } = resume;
+  const text = (value: unknown) => String(value ?? "");
   const contactLine = [contact.location, contact.phone, contact.email]
     .filter(Boolean)
     .join("  |  ");
 
-  const headerChildren: Array<TextRun | ExternalHyperlink | Paragraph> = [];
-  if (contactLine) {
-    headerChildren.push(run(contactLine + "  |  ", { color: LIGHT }));
-  }
   const links: Array<[string, string]> = [];
-  if (contact.linkedin) links.push(["LinkedIn", contact.linkedin]);
-  if (contact.github) links.push(["GitHub", contact.github]);
-  if (contact.personal_site) links.push(["Portfolio", contact.personal_site]);
+  if (contact.linkedin) links.push(["LinkedIn", asUrl(contact.linkedin)]);
+  if (contact.github) {
+    links.push(["GitHub", asUrl(contact.github, "https://github.com/")]);
+  }
+  if (contact.personal_site) {
+    links.push(["Portfolio", asUrl(contact.personal_site)]);
+  }
+  const headerChildren: Array<TextRun | ExternalHyperlink> = [];
+  if (contactLine) {
+    headerChildren.push(
+      run(links.length > 0 ? `${contactLine}  |  ` : contactLine, {
+        color: DOCX_COLOR_LIGHT,
+      }),
+    );
+  }
   links.forEach(([label, url], index) => {
-    if (index > 0) headerChildren.push(run("  |  ", { color: LIGHT }));
+    if (index > 0)
+      headerChildren.push(run("  |  ", { color: DOCX_COLOR_LIGHT }));
     headerChildren.push(link(label, url));
   });
 
   const children: Paragraph[] = [
     new Paragraph({
-      spacing: { before: 0, after: 60 },
+      spacing: DOCX_SPACING.contact,
       children: [
-        run(contact.name, { bold: true, color: DARK, size: SIZE_NAME }),
+        run(contact.name, {
+          bold: true,
+          color: DOCX_COLOR_DARK,
+          size: DOCX_SIZE_NAME,
+        }),
       ],
     }),
   ];
   if (headerChildren.length > 0) {
     children.push(
       new Paragraph({
-        spacing: { before: 0, after: 80 },
+        spacing: DOCX_SPACING.summary,
         children: headerChildren,
       }),
     );
   }
 
-  // ---- Experience ----
-  const experiences = parents.filter((parent) => parent.kind === "experience");
-  if (experiences.length > 0) {
+  if (resume.summary) {
+    children.push(sectionHeader("Summary"));
+    children.push(
+      new Paragraph({
+        spacing: DOCX_SPACING.summary,
+        children: [run(resume.summary)],
+      }),
+    );
+  }
+
+  const bulletsOf = (section: Record<string, unknown>) =>
+    ((section.bullets as string[] | undefined) ?? []).map((line) =>
+      bullet(line),
+    );
+
+  const experience = resume.sections.filter((row) => row.kind === "experience");
+  if (experience.length > 0) {
     children.push(sectionHeader("Experience"));
-    for (const parent of experiences) {
+    for (const section of experience) {
       children.push(
-        roleHeader(parent.name, parent.title, "", parent.dateRange),
+        roleHeader(
+          text(section.organization),
+          text(section.role),
+          text(section.location),
+          text(section.dates),
+        ),
+        ...bulletsOf(section),
       );
-      for (const achievement of achievements.filter(
-        (row) => row.parentId === parent.id,
-      )) {
-        children.push(bullet(achievement.text));
-      }
     }
   }
 
-  // ---- Projects ----
-  const projects = parents.filter((parent) => parent.kind === "project");
+  const projects = resume.sections.filter((row) => row.kind === "project");
   if (projects.length > 0) {
     children.push(sectionHeader("Projects"));
-    for (const parent of projects) {
-      const stack = (await repo.skillsForParent(userId, parent.id))
-        .map((id) => skillNames.get(id) ?? id)
-        .join(", ");
+    for (const section of projects) {
+      const url = text(section.url);
       children.push(
-        projectHeader(parent.name, stack, parent.dateRange, parent.url),
+        projectHeader(
+          text(section.name),
+          text(section.tech_stack),
+          text(section.dates),
+          url && asUrl(url),
+        ),
+        ...bulletsOf(section),
       );
-      for (const achievement of achievements.filter(
-        (row) => row.parentId === parent.id,
-      )) {
-        children.push(bullet(achievement.text));
-      }
     }
   }
 
-  // ---- Technical Skills ----
-  if (skills.length > 0) {
+  if (resume.skills.length > 0) {
     children.push(sectionHeader("Technical Skills"));
-    const byCategory = new Map<string, string[]>();
-    for (const skill of skills) {
-      const category = skill.category || "Other";
-      const list = byCategory.get(category) ?? [];
-      list.push(skill.name);
-      byCategory.set(category, list);
-    }
-    for (const [category, names] of [...byCategory].sort((a, b) =>
-      a[0].localeCompare(b[0]),
-    )) {
-      children.push(techStack(category, names.join(", ")));
+    for (const { category, names } of resume.skills) {
+      children.push(techStack(category || "Other", names.join(", ")));
     }
   }
 
-  // ---- Education ----
-  if (education.length > 0) {
+  if (resume.education.length > 0) {
     children.push(sectionHeader("Education"));
-    for (const row of education) {
+    for (const row of resume.education) {
+      const dates = text(row.dates);
       children.push(
         new Paragraph({
-          spacing: { before: 80, after: 30 },
+          spacing: DOCX_SPACING.listItem,
           children: [
-            run(row.credential || row.institution, { bold: true, color: DARK }),
+            run(text(row.degree) || text(row.institution), {
+              bold: true,
+              color: DOCX_COLOR_DARK,
+            }),
             run(
-              `  -  ${row.institution}${
-                row.dateRange ? `  |  ${row.dateRange}` : ""
-              }`,
-              { color: LIGHT },
+              `  -  ${text(row.institution)}${dates ? `  |  ${dates}` : ""}`,
+              {
+                color: DOCX_COLOR_LIGHT,
+              },
             ),
           ],
         }),
@@ -254,26 +362,26 @@ export async function buildResumeDocx(
     }
   }
 
-  // ---- Certifications ----
-  if (certifications.length > 0) {
+  if (resume.certifications.length > 0) {
     children.push(sectionHeader("Certifications"));
-    for (const row of certifications) {
+    for (const row of resume.certifications) {
       children.push(
         bullet([
-          run(row.name, { color: DARK }),
-          run(row.issuer ? ` - ${row.issuer}` : "", { color: LIGHT }),
+          run(text(row.name), { color: DOCX_COLOR_DARK }),
+          run(row.issuer ? ` - ${text(row.issuer)}` : "", {
+            color: DOCX_COLOR_LIGHT,
+          }),
         ]),
       );
     }
   }
 
-  // ---- Soft Skills ----
-  if (softSkills.length > 0) {
+  if (resume.soft_skills.length > 0) {
     children.push(sectionHeader("Soft Skills"));
-    for (const row of softSkills) {
+    for (const row of resume.soft_skills) {
       children.push(
         bullet([
-          run(`${row.name}`, { bold: true, color: DARK }),
+          run(row.name, { bold: true, color: DOCX_COLOR_DARK }),
           run(row.detail ? ` - ${row.detail}` : ""),
         ]),
       );
@@ -291,21 +399,28 @@ export async function buildResumeDocx(
               format: LevelFormat.BULLET,
               text: "\u2022",
               alignment: AlignmentType.LEFT,
-              style: { paragraph: { indent: { left: 480, hanging: 280 } } },
+              style: { paragraph: { indent: DOCX_BULLET_INDENT } },
             },
           ],
         },
       ],
     },
     styles: {
-      default: { document: { run: { font: FONT, size: SIZE_NORMAL } } },
+      default: {
+        document: { run: { font: DOCX_FONT, size: DOCX_SIZE_NORMAL } },
+      },
     },
     sections: [
       {
         properties: {
           page: {
-            size: { width: 12240, height: 15840 },
-            margin: { top: 1008, right: 1008, bottom: 1008, left: 1008 },
+            size: DOCX_PAGE_SIZE,
+            margin: {
+              top: DOCX_PAGE_MARGIN,
+              right: DOCX_PAGE_MARGIN,
+              bottom: DOCX_PAGE_MARGIN,
+              left: DOCX_PAGE_MARGIN,
+            },
           },
         },
         children,

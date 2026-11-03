@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ROLE_STATUSES } from "@resume-god/api-client";
+import { ROLE_STATUSES, type TailorJobDetail } from "@resume-god/api-client";
 import { SelectField, toOptions } from "../components/SelectField";
 import {
   Alert,
@@ -10,15 +10,17 @@ import {
   Field,
   PageHeader,
   Input,
+  Skeleton,
   Textarea,
 } from "../components/ui";
 import {
   createCompany as createCompanyApi,
   fetchCompanies,
   fetchSettings,
-  postTailor,
+  fetchTailorJob,
+  createTailorJob,
+  retryTailorJob,
 } from "../lib/api";
-import { setSessionPlan } from "../lib/session";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto (LLM if key, else offline)" },
@@ -28,7 +30,30 @@ const PROVIDER_OPTIONS = [
   { value: "deterministic", label: "Offline only" },
 ];
 
+/** With ?retry=<job id>, the form opens on that failed job's input. */
 export default function NewJobPage() {
+  const [searchParams] = useSearchParams();
+  const retryId = searchParams.get("retry");
+  const job = useQuery({
+    queryKey: ["tailor-job", retryId],
+    queryFn: () => fetchTailorJob(retryId as string),
+    enabled: retryId !== null,
+    gcTime: 0,
+  });
+  if (retryId === null) return <JobForm />;
+  if (job.isPending) return <Skeleton className="h-96 rounded-lg" />;
+  if (job.isError) {
+    return (
+      <Alert role="alert" title="Could not load this job">
+        {job.error.message}
+      </Alert>
+    );
+  }
+  return <JobForm key={job.data.id} failed={job.data} />;
+}
+
+function JobForm({ failed }: { failed?: TailorJobDetail }) {
+  const previous = failed?.request;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -38,25 +63,28 @@ export default function NewJobPage() {
   });
   const settings = useQuery({ queryKey: ["settings"], queryFn: fetchSettings });
 
-  const [companyId, setCompanyId] = useState<string>(
-    searchParams.get("companyId") ?? "",
+  const [companyId, setCompanyId] = useState<string>(() => {
+    if (previous?.company_id != null) return String(previous.company_id);
+    if (previous?.company_name) return "__new__";
+    return searchParams.get("companyId") ?? "";
+  });
+  const [newCompanyName, setNewCompanyName] = useState(
+    previous?.company_name ?? "",
   );
-  const [newCompanyName, setNewCompanyName] = useState("");
   const [targetTitle, setTargetTitle] = useState(
-    searchParams.get("title") ?? "",
+    previous?.target_title ?? searchParams.get("title") ?? "",
   );
-  const [jobUrl, setJobUrl] = useState("");
-  const [roleStatus, setRoleStatus] = useState("applied");
-  const [provider, setProvider] = useState("auto");
-  const [maxAchievements, setMaxAchievements] = useState("10");
-  const [font, setFont] = useState("");
-  const [summary, setSummary] = useState("");
-  const [jdText, setJdText] = useState("");
-
-  const [tailored, setTailored] = useState<{
-    roleId: number | null;
-    skillDiff: Record<string, unknown> | null;
-  } | null>(null);
+  const [jobUrl, setJobUrl] = useState(previous?.job_url ?? "");
+  const [roleStatus, setRoleStatus] = useState(
+    previous?.role_status ?? "applied",
+  );
+  const [provider, setProvider] = useState(previous?.provider ?? "auto");
+  const [maxAchievements, setMaxAchievements] = useState(
+    String(previous?.max_achievements ?? 14),
+  );
+  const [font, setFont] = useState(previous?.font ?? "");
+  const [summary, setSummary] = useState(previous?.summary ?? "");
+  const [jdText, setJdText] = useState(previous?.jd_text ?? "");
 
   const createCompany = useMutation({
     mutationFn: () => createCompanyApi({ name: newCompanyName }),
@@ -71,27 +99,23 @@ export default function NewJobPage() {
     mutationFn: () => {
       const selectedId =
         companyId === "__new__" ? undefined : Number(companyId) || undefined;
-      return postTailor({
+      const input = {
         jd_text: jdText,
         target_title: targetTitle || undefined,
         provider,
-        max_achievements: Number(maxAchievements) || 10,
+        max_achievements: Number(maxAchievements) || 14,
         font: font || settings.data?.default_font || undefined,
         summary: summary || undefined,
         company_id: selectedId,
         company_name: companyId === "__new__" ? newCompanyName : undefined,
         job_url: jobUrl || undefined,
         role_status: roleStatus,
-      });
+      };
+      return failed ? retryTailorJob(failed.id, input) : createTailorJob(input);
     },
-    onSuccess: (data) => {
-      setSessionPlan(data.plan, data.providers);
-      setTailored({
-        roleId: data.role_id ?? null,
-        skillDiff: (data.skill_diff as Record<string, unknown>) ?? null,
-      });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["companies"] });
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["tailor-jobs"] });
+      navigate("/tailoring");
     },
   });
 
@@ -102,20 +126,22 @@ export default function NewJobPage() {
       ? newCompanyName.trim().length > 0
       : companyId !== "");
 
-  const diff = tailored?.skillDiff as {
-    summary?: string;
-    have?: unknown[];
-    inferred?: unknown[];
-    missing_no_evidence?: unknown[];
-    unknown_jd_terms?: unknown[];
-  } | null;
-
   return (
     <div className="space-y-6">
       <PageHeader
-        title="New application"
-        lede="Paste a job description; the plan is built only from your reviewed graph."
+        title={failed ? "Edit and retry" : "New application"}
+        lede={
+          failed
+            ? "Change anything below, then run this job again."
+            : "Paste a job description. Your resume is prepared in the background, using only your graph."
+        }
       />
+
+      {failed?.error && (
+        <Alert role="alert" tone="review" title="The last attempt failed">
+          {failed.error}
+        </Alert>
+      )}
 
       <Card className="p-6">
         <form
@@ -151,7 +177,10 @@ export default function NewJobPage() {
                 />
               </Field>
             )}
-            <Field label="Target title">
+            <Field
+              label="Target title"
+              hint="Leave empty to use the title in the posting."
+            >
               <Input
                 placeholder="Software Engineer"
                 value={targetTitle}
@@ -198,7 +227,7 @@ export default function NewJobPage() {
           </div>
           <Field label="Summary override (optional)">
             <Input
-              placeholder="Leave empty to use the reviewed profile summary"
+              placeholder="Leave empty to generate one"
               value={summary}
               onChange={(event) => setSummary(event.target.value)}
             />
@@ -214,7 +243,7 @@ export default function NewJobPage() {
             />
           </Field>
           {tailor.isError && (
-            <Alert role="alert" title="Could not generate the plan">
+            <Alert role="alert" title="Could not start tailoring">
               {tailor.error instanceof Error
                 ? tailor.error.message
                 : String(tailor.error)}
@@ -225,55 +254,14 @@ export default function NewJobPage() {
             loading={tailor.isPending}
             disabled={!canSubmit}
           >
-            {tailor.isPending ? "Tailoring…" : "Generate tailored plan"}
+            {tailor.isPending
+              ? "Starting…"
+              : failed
+                ? "Retry tailoring"
+                : "Start tailoring"}
           </Button>
         </form>
       </Card>
-
-      {tailored && (
-        <Card className="border-ok/40 p-6">
-          <h2 className="font-semibold text-ok">Plan generated</h2>
-          {diff?.summary && (
-            <p className="mt-1 text-sm text-ink-2">{diff.summary}</p>
-          )}
-          {tailored.roleId != null && (
-            <p className="mt-1 text-sm text-ink-2">
-              Recorded in your tracker —{" "}
-              <a
-                href={`/roles/${tailored.roleId}`}
-                className="text-brand underline"
-              >
-                view role
-              </a>
-              .
-            </p>
-          )}
-          {Array.isArray(diff?.have) && diff!.have!.length > 0 && (
-            <p className="mt-1 text-sm text-ink-2">
-              You have direct evidence for {diff!.have!.length} expected
-              skill(s)
-              {Array.isArray(diff?.inferred) &&
-                diff!.inferred!.length > 0 &&
-                ` (+${diff!.inferred!.length} inferred)`}
-              .
-            </p>
-          )}
-          <div className="mt-4 flex gap-2">
-            <Button onClick={() => navigate("/review")}>
-              Review the AI plan →
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                tailor.reset();
-                setTailored(null);
-              }}
-            >
-              Tailor another
-            </Button>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

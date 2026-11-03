@@ -15,23 +15,21 @@ import type { SessionUser } from "../auth/session.guard";
 import {
   companiesListResponseSchema,
   companyDetailResponseSchema,
-  companyIdParamSchema,
   companyResponseSchema,
-  createCompanySchema,
-  createRoleSchema,
   dashboardResponseSchema,
-  listRolesQuerySchema,
   roleHistoryResponseSchema,
-  roleIdParamSchema,
   roleMutationResponseSchema,
   rolesListResponseSchema,
-  updateRoleSchema,
-  type CreateCompanyInput,
-  type CreateRoleInput,
-  type ListRolesQuery,
-  type UpdateRoleInput,
 } from "./tracker.schemas";
 import { TrackerService } from "./tracker.service";
+import {
+  CompanyIdParamDto,
+  CreateCompanyDto,
+  CreateRoleDto,
+  ListRolesQueryDto,
+  RoleIdParamDto,
+  UpdateRoleDto,
+} from "./dto/tracker.dto";
 
 interface AuthedRequest extends Request {
   user: SessionUser;
@@ -51,7 +49,7 @@ export class TrackerController {
   @SerializeOptions({ schema: companyResponseSchema })
   async createCompany(
     @Req() request: AuthedRequest,
-    @Body({ schema: createCompanySchema }) body: CreateCompanyInput,
+    @Body() body: CreateCompanyDto,
   ) {
     return await this.tracker.createCompany(request.user.id, body);
   }
@@ -66,7 +64,7 @@ export class TrackerController {
   @SerializeOptions({ schema: companyDetailResponseSchema })
   async companyDetail(
     @Req() request: AuthedRequest,
-    @Param("companyId", { schema: companyIdParamSchema }) companyId: number,
+    @Param() { companyId }: CompanyIdParamDto,
   ) {
     return await this.tracker.companyDetail(request.user.id, companyId);
   }
@@ -75,17 +73,14 @@ export class TrackerController {
   @SerializeOptions({ schema: rolesListResponseSchema })
   async listRoles(
     @Req() request: AuthedRequest,
-    @Query({ schema: listRolesQuerySchema }) query: ListRolesQuery,
+    @Query() query: ListRolesQueryDto,
   ) {
     return await this.tracker.listRoles(request.user.id, query);
   }
 
   @Post("roles")
   @SerializeOptions({ schema: roleMutationResponseSchema })
-  async createRole(
-    @Req() request: AuthedRequest,
-    @Body({ schema: createRoleSchema }) body: CreateRoleInput,
-  ) {
+  async createRole(@Req() request: AuthedRequest, @Body() body: CreateRoleDto) {
     return await this.tracker.createRole(request.user.id, body);
   }
 
@@ -93,8 +88,8 @@ export class TrackerController {
   @SerializeOptions({ schema: roleMutationResponseSchema })
   async updateRole(
     @Req() request: AuthedRequest,
-    @Param("roleId", { schema: roleIdParamSchema }) roleId: number,
-    @Body({ schema: updateRoleSchema }) body: UpdateRoleInput,
+    @Param() { roleId }: RoleIdParamDto,
+    @Body() body: UpdateRoleDto,
   ) {
     return await this.tracker.updateRole(request.user.id, roleId, body);
   }
@@ -103,7 +98,7 @@ export class TrackerController {
   @SerializeOptions({ schema: roleHistoryResponseSchema })
   async roleHistory(
     @Req() request: AuthedRequest,
-    @Param("roleId", { schema: roleIdParamSchema }) roleId: number,
+    @Param() { roleId }: RoleIdParamDto,
   ) {
     return await this.tracker.roleHistory(request.user.id, roleId);
   }

@@ -3,6 +3,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   serial,
@@ -422,5 +423,39 @@ export const userApiKeys = pgTable(
       table.userId,
       table.provider,
     ),
+  ],
+);
+
+/** Background tailoring. The table is the queue; see tailor-jobs.service.ts. */
+export const tailorJobs = pgTable(
+  "tailor_jobs",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUser.id, { onDelete: "cascade" }),
+    /** queued, running, succeeded, or failed. */
+    status: text("status").notNull().default("queued"),
+    stage: text("stage"),
+    targetTitle: text("target_title").notNull().default(""),
+    companyLabel: text("company_label").notNull().default(""),
+    input: jsonb("input").notNull(),
+    result: jsonb("result").$type<unknown>(),
+    roleId: integer("role_id").references(() => roles.id, {
+      onDelete: "set null",
+    }),
+    error: text("error"),
+    warning: text("warning"),
+    attempts: integer("attempts").notNull().default(0),
+    heartbeatAt: ts("heartbeat_at"),
+    createdAt: ts("created_at")
+      .notNull()
+      .$defaultFn(() => new Date()),
+    startedAt: ts("started_at"),
+    finishedAt: ts("finished_at"),
+  },
+  (table) => [
+    index("tailor_jobs_user_created_idx").on(table.userId, table.createdAt),
+    index("tailor_jobs_status_idx").on(table.status, table.createdAt),
   ],
 );

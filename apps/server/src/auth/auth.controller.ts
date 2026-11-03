@@ -15,15 +15,12 @@ import {
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import { fromNodeHeaders } from "better-auth/node";
-import { z } from "zod";
 
 import { firstNonEmpty, stripTrailingSlashes } from "../config/env-utils";
+import { GOOGLE_ACCOUNT_CHOOSER_PROMPT } from "./constants/auth.constants";
 import { AuthHandle } from "./auth.server";
 import { Public } from "./session.guard";
-
-const switchAccountSchema = z.strictObject({
-  user_id: z.string().min(1),
-});
+import { SwitchAccountDto } from "./dto/switch-account.dto";
 
 /**
  * Auth surface:
@@ -101,7 +98,9 @@ export class AuthController {
         provider: "google",
         callbackURL: "/",
         // Without this Google silently reuses the account already signed in.
-        additionalParams: addAccount ? { prompt: "select_account" } : undefined,
+        additionalParams: addAccount
+          ? { prompt: GOOGLE_ACCOUNT_CHOOSER_PROMPT }
+          : undefined,
       },
       headers: fromNodeHeaders(request.headers),
       returnHeaders: true,
@@ -179,8 +178,7 @@ export class AuthController {
   async switchAccount(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-    @Body({ schema: switchAccountSchema })
-    body: z.output<typeof switchAccountSchema>,
+    @Body() body: SwitchAccountDto,
   ) {
     const headers = fromNodeHeaders(request.headers);
     const target = (await this.auth.api.listDeviceSessions({ headers })).find(

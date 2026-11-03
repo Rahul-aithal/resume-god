@@ -95,7 +95,7 @@ describe("deterministic JD parsing (fixture parity with python oracle)", () => {
 
   it("throws when the role title cannot be determined", () => {
     expect(() => parseJobDescription(profile, "We write software.")).toThrow(
-      "Could not determine role title",
+      "Couldn't find a job title",
     );
   });
 

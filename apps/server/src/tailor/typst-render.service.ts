@@ -8,10 +8,15 @@ import {
   Inject,
   Injectable,
   InternalServerErrorException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import type { ResumeData } from "../pipeline/resume-data";
+import {
+  TYPST_ERROR_MAX_CHARS,
+  TYPST_VERSION,
+} from "./constants/tailor.constants";
 
 const TEMPLATE = resolve(import.meta.dir, "../render/template/resume-v2.typ");
 
@@ -25,6 +30,11 @@ export class TypstRenderService {
       this.config.get<string>("TYPST_BIN")?.trim() ||
       process.env.TYPST_BIN?.trim() ||
       "typst";
+    if (!Bun.which(bin)) {
+      throw new ServiceUnavailableException(
+        `PDF rendering needs Typst, and "${bin}" wasn't found on this server. Install Typst ${TYPST_VERSION} or set TYPST_BIN.`,
+      );
+    }
     const dir = mkdtempSync(join(tmpdir(), "resume-typst-"));
     const source = join(dir, "resume-v2.typ");
     const data = join(dir, "resume-data.json");
@@ -41,7 +51,7 @@ export class TypstRenderService {
       if (exit !== 0) {
         const stderr = await new Response(proc.stderr).text();
         throw new BadRequestException(
-          `Typst compilation failed: ${stderr.slice(0, 800)}`,
+          `Typst compilation failed: ${stderr.slice(0, TYPST_ERROR_MAX_CHARS)}`,
         );
       }
       return readFileSync(output);

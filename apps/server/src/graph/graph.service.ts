@@ -14,23 +14,25 @@ import {
   type ParentRow,
   type SkillRow,
 } from "./graph.repository";
-import { defaultImpliesFor } from "./skill-implies-defaults";
-
-const PREFIX: Record<string, string> = {
-  skill: "skill",
-  experience: "experience",
-  project: "project",
-  achievement: "achievement",
-  education: "education",
-  certification: "certification",
-};
+import { defaultImpliesFor } from "./constants/skill-implies-defaults";
+import {
+  ACHIEVEMENT_LABEL_MAX_LENGTH,
+  ACHIEVEMENT_SLUG_SOURCE_LENGTH,
+  EXPORT_VERSION,
+  type ExploreHops,
+  NODE_ID_MESSAGE,
+  NODE_ID_PATTERN,
+  NODE_ID_PREFIX,
+  SLUG_MAX_LENGTH,
+} from "./constants/graph.constants";
+import { parseProfileDocument } from "./dto/profile-document.dto";
 
 function slugify(name: string): string {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
-    .slice(0, 48);
+    .slice(0, SLUG_MAX_LENGTH);
 }
 
 @Injectable()
@@ -49,12 +51,10 @@ export class GraphService {
     name: string,
     requested?: string,
   ): Promise<string> {
-    const prefix = PREFIX[kind] ?? kind;
+    const prefix = NODE_ID_PREFIX[kind] ?? kind;
     const base = requested?.trim() || `${prefix}_${slugify(name)}`;
-    if (!/^[a-z0-9_]+$/.test(base)) {
-      throw new BadRequestException(
-        "id must contain only lowercase letters, digits, and underscores",
-      );
+    if (!NODE_ID_PATTERN.test(base)) {
+      throw new BadRequestException(NODE_ID_MESSAGE);
     }
     const taken = new Set(
       (await this.repo.listSkills(userId))
@@ -104,8 +104,8 @@ export class GraphService {
         id: achievement.id,
         kind: "achievement",
         label:
-          achievement.text.length > 64
-            ? `${achievement.text.slice(0, 64)}…`
+          achievement.text.length > ACHIEVEMENT_LABEL_MAX_LENGTH
+            ? `${achievement.text.slice(0, ACHIEVEMENT_LABEL_MAX_LENGTH)}…`
             : achievement.text,
         detail: parentNames.get(achievement.parentId)?.name ?? "",
       })),
@@ -405,7 +405,7 @@ export class GraphService {
     const id = await this.uniqueId(
       userId,
       "achievement",
-      input.text.slice(0, 40),
+      input.text.slice(0, ACHIEVEMENT_SLUG_SOURCE_LENGTH),
       input.id,
     );
     await this.repo.insertAchievement({
@@ -626,7 +626,7 @@ export class GraphService {
     };
   }
 
-  async explore(userId: string, skillId: string, hops: 1 | 2) {
+  async explore(userId: string, skillId: string, hops: ExploreHops) {
     await this.assertSkill(userId, skillId);
     const achievements = await this.repo.listAchievements(userId);
     const adjacency = new Map<string, Set<string>>();
@@ -770,7 +770,7 @@ export class GraphService {
     const parents = await this.repo.listParents(userId);
     const achievements = await this.repo.listAchievements(userId);
     return {
-      version: 2,
+      version: EXPORT_VERSION,
       reviewed_at: await this.reviewedAt(userId),
       skills: skills.map((skill) => ({
         id: skill.id,
@@ -868,85 +868,56 @@ export class GraphService {
     ) {
       throw new BadRequestException("Profile document must be a mapping");
     }
-    const doc = parsed as Record<string, unknown>;
-    const required = [
-      "skills",
-      "achievements",
-      "experiences",
-      "projects",
-    ] as const;
-    const missing = required.filter((key) => !Array.isArray(doc[key]));
-    if (missing.length > 0) {
-      throw new BadRequestException(
-        `Profile is missing required sections: ${missing.join(", ")}`,
-      );
+    const validated = parseProfileDocument(parsed);
+    if ("errors" in validated) {
+      throw new BadRequestException(validated.errors);
     }
+    const doc = validated.document;
 
-    const asArray = (value: unknown): Array<Record<string, unknown>> =>
-      Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
-    const str = (value: unknown, fallback = ""): string =>
-      typeof value === "string" ? value : fallback;
-    const strList = (value: unknown): string[] =>
-      Array.isArray(value) ? value.map((item) => String(item)) : [];
-
-    const skills = asArray(doc.skills).map((row) => ({
-      id: str(row.id),
-      name: str(row.name),
-      category: str(row.category),
-      aliases: strList(row.aliases),
+    const skills = doc.skills.map((row) => ({
+      id: row.id,
+      name: row.name,
+      category: row.category ?? "",
+      aliases: row.aliases ?? [],
     }));
-    if (skills.some((skill) => !skill.id || !skill.name)) {
-      throw new BadRequestException("Every skill needs id and name");
-    }
 
     const parents: ParentRow[] = [
-      ...asArray(doc.experiences).map((row) => ({
+      ...doc.experiences.map((row) => ({
         userId,
-        id: str(row.id),
+        id: row.id,
         kind: "experience" as const,
-        name: str(row.role) || str(row.name),
-        title: str(row.title) || str(row.role),
-        url: str(row.url),
-        dateRange: str(row.date_range),
+        name: row.role || row.name || "",
+        title: row.title || row.role || "",
+        url: row.url ?? "",
+        dateRange: row.date_range ?? "",
       })),
-      ...asArray(doc.projects).map((row) => ({
+      ...doc.projects.map((row) => ({
         userId,
-        id: str(row.id),
+        id: row.id,
         kind: "project" as const,
-        name: str(row.name) || str(row.role),
-        title: str(row.title),
-        url: str(row.url),
-        dateRange: str(row.date_range),
+        name: row.name || row.role || "",
+        title: row.title ?? "",
+        url: row.url ?? "",
+        dateRange: row.date_range ?? "",
       })),
     ];
-    if (parents.some((parent) => !parent.id || !parent.name)) {
-      throw new BadRequestException(
-        "Every experience/project needs id and name/role",
-      );
-    }
 
     const parentIdSet = new Set(parents.map((parent) => parent.id));
-    const achievements: AchievementRow[] = asArray(doc.achievements).map(
-      (row) => ({
-        userId,
-        id: str(row.id),
-        parentId: str(row.part_of),
-        text: str(row.text),
-        dateRange: str(row.date_range),
-        skills: strList(row.skills),
-        metrics: strList(row.metrics),
-      }),
+    const achievements: AchievementRow[] = doc.achievements.map((row) => ({
+      userId,
+      id: row.id,
+      parentId: row.part_of,
+      text: row.text,
+      dateRange: row.date_range ?? "",
+      skills: row.skills ?? [],
+      metrics: row.metrics ?? [],
+    }));
+    const unknownParent = achievements.find(
+      (achievement) => !parentIdSet.has(achievement.parentId),
     );
-    if (
-      achievements.some(
-        (achievement) =>
-          !achievement.id ||
-          !achievement.text ||
-          !parentIdSet.has(achievement.parentId),
-      )
-    ) {
+    if (unknownParent) {
       throw new BadRequestException(
-        "Every achievement needs id, text, and a part_of that matches an experience/project id",
+        `Achievement ${unknownParent.id}: part_of must match an experience or project id`,
       );
     }
     const skillIdSet = new Set(skills.map((skill) => skill.id));
@@ -961,44 +932,40 @@ export class GraphService {
       }
     }
 
-    const education = asArray(doc.education).map((row) => ({
+    const education = (doc.education ?? []).map((row) => ({
       userId,
-      id: str(row.id),
-      institution: str(row.institution),
-      credential: str(row.credential),
-      dateRange: str(row.date_range),
+      id: row.id ?? "",
+      institution: row.institution ?? "",
+      credential: row.credential ?? "",
+      dateRange: row.date_range ?? "",
     }));
-    const certifications = asArray(doc.certifications).map((row) => ({
+    const certifications = (doc.certifications ?? []).map((row) => ({
       userId,
-      id: str(row.id),
-      name: str(row.name),
-      issuer: str(row.issuer),
-      issuedOn: str(row.issued_on),
+      id: row.id ?? "",
+      name: row.name ?? "",
+      issuer: row.issuer ?? "",
+      issuedOn: row.issued_on ?? "",
     }));
 
-    const softSkills = asArray(doc.soft_skills).map((row) => ({
+    const softSkills = (doc.soft_skills ?? []).map((row) => ({
       userId,
-      id: str(row.id) || `softskill_${slugify(str(row.name))}`,
-      name: str(row.name),
-      detail: str(row.detail),
+      id: row.id || `softskill_${slugify(row.name)}`,
+      name: row.name,
+      detail: row.detail ?? "",
     }));
-    if (softSkills.some((row) => !row.name)) {
-      throw new BadRequestException("Every soft skill needs a name");
-    }
-    const contactRaw = (doc.contact ?? {}) as Record<string, unknown>;
     const contact = {
-      location: str(contactRaw.location),
-      phone: str(contactRaw.phone),
-      email: str(contactRaw.email),
-      linkedin: str(contactRaw.linkedin),
-      github: str(contactRaw.github),
-      personalSite: str(contactRaw.personal_site),
+      location: doc.contact?.location ?? "",
+      phone: doc.contact?.phone ?? "",
+      email: doc.contact?.email ?? "",
+      linkedin: doc.contact?.linkedin ?? "",
+      github: doc.contact?.github ?? "",
+      personalSite: doc.contact?.personal_site ?? "",
     };
 
-    const impliesRaw = (doc.skill_implies ?? {}) as Record<string, unknown>;
+    const impliesRaw = doc.skill_implies ?? {};
     const implies: Array<{ from: string; to: string }> = [];
     for (const [from, targets] of Object.entries(impliesRaw)) {
-      for (const to of strList(targets)) {
+      for (const to of Array.isArray(targets) ? targets.map(String) : []) {
         if (skillIdSet.has(from) && skillIdSet.has(to)) {
           implies.push({ from, to });
         }
@@ -1145,7 +1112,7 @@ export class GraphService {
 function expandSkillIds(
   startId: string,
   adjacency: Map<string, Set<string>>,
-  hops: 1 | 2,
+  hops: ExploreHops,
 ): string[] {
   let frontier = new Set([startId]);
   const seen = new Set([startId]);

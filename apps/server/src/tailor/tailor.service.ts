@@ -12,6 +12,7 @@ import { searchDocs, type SearchDoc } from "../graph/graph-search";
 import {
   LlmProviderChainService,
   type LlmProvider,
+  type UserModels,
 } from "../llm/provider-chain.service";
 import {
   parseJobDescription,
@@ -31,6 +32,8 @@ export interface StageInfo {
   used: string;
   fallback_error: string | null;
 }
+
+export type TailorStage = "parsing" | "planning" | "rewriting" | "finishing";
 
 export interface TailorResult {
   plan: TailoringPlan;
@@ -61,6 +64,18 @@ export class TailorService {
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
+  }
+
+  /** Only models the user changed: an untouched default leaves env in charge. */
+  private async modelsFor(userId: string): Promise<UserModels> {
+    const settings = await this.settings.get(userId);
+    const changed = (value: string, standard: string) =>
+      value && value !== standard ? value : undefined;
+    return {
+      gemini: changed(settings.gemini_model, DEFAULT_SETTINGS.gemini_model),
+      glm: changed(settings.glm_model, DEFAULT_SETTINGS.glm_model),
+      openai: changed(settings.openai_model, DEFAULT_SETTINGS.openai_model),
+    };
   }
 
   private async semanticSearch(
@@ -98,26 +113,24 @@ export class TailorService {
       font?: string;
       summary?: string;
     },
+    options: { onStage?: (stage: TailorStage) => void } = {},
   ): Promise<TailorResult> {
     const order = await this.orderFor(userId);
     const userKeys = await this.settings.userKeys(userId);
-    const choice = input.provider ?? "auto";
+    const choice = input.provider ?? DEFAULT_PROVIDER_CHOICE;
     const font = firstNonEmptyInput(
       input.font,
       (await this.settings.get(userId)).default_font,
     );
 
     const impliesEdges = await this.repo.listImplies(userId);
-    const contact: ContactView = await this.graph.contact(
-      userId,
-      account.display_name,
-      account.email,
-    );
 
     const providers: Record<string, StageInfo> = {};
 
     // ---- 1. parse ----
-    const parseList = this.chain.resolveList(choice, order, userKeys);
+    options.onStage?.("parsing");
+    const models = await this.modelsFor(userId);
+    const parseList = this.chain.resolveList(choice, order, userKeys, models);
     const parseResult = await this.chain.attemptEach(
       parseList.providers,
       async (provider: LlmProvider | null) => {
@@ -145,11 +158,14 @@ export class TailorService {
     };
 
     // ---- 2. plan ----
+    options.onStage?.("planning");
     const profileView = await this.profileView(userId);
     const plan = await buildTailoringPlan(profileView, input.jd_text, {
-      // User-requested title wins; buildTailoringPlan 400s on mismatch.
-      targetTitle: firstNonEmptyInput(input.target_title, parsed.role_title),
-      maxAchievements: input.max_achievements ?? 10,
+      // The title is a label: the user's wording wins over the job's.
+      targetTitle: cleanTitle(
+        firstNonEmptyInput(input.target_title, parsed.role_title),
+      ),
+      maxAchievements: input.max_achievements ?? DEFAULT_MAX_ACHIEVEMENTS,
       parsedJobDescription: parsed as unknown as Record<string, unknown>,
       searchBullets: (query, limit) =>
         this.semanticSearch(userId, query, limit),
@@ -157,7 +173,8 @@ export class TailorService {
     });
 
     // ---- 3. rewrite (LLM, deterministic fallback) ----
-    const rewriteList = this.chain.resolveList(choice, order, userKeys);
+    options.onStage?.("rewriting");
+    const rewriteList = this.chain.resolveList(choice, order, userKeys, models);
     const rewriteResult = await this.chain.attemptEach(
       rewriteList.providers,
       async (provider) => {
@@ -199,6 +216,39 @@ export class TailorService {
     };
 
     // ---- 4. resume-data + grounding ----
+    options.onStage?.("finishing");
+    const { resume_data, validation } = await this.resumeFromPlan(
+      userId,
+      account,
+      rewritten,
+      { font, summary: input.summary },
+    );
+
+    return {
+      plan: rewritten,
+      resume_data,
+      validation,
+      providers,
+    };
+  }
+
+  /** The resume a plan produces, checked against the reviewed graph. */
+  async resumeFromPlan(
+    userId: string,
+    account: { display_name: string; email: string },
+    plan: unknown,
+    options: { font?: string; summary?: string | null },
+  ) {
+    const profileView = await this.profileView(userId);
+    const contact: ContactView = await this.graph.contact(
+      userId,
+      account.display_name,
+      account.email,
+    );
+    const font = firstNonEmptyInput(
+      options.font,
+      (await this.settings.get(userId)).default_font,
+    );
     const techStackByParent: Record<string, string> = {};
     for (const parent of await this.repo.listParents(userId)) {
       const names: string[] = [];
@@ -210,12 +260,12 @@ export class TailorService {
     }
 
     const resumeData = buildResumeData(
-      rewritten as unknown as Parameters<typeof buildResumeData>[0],
+      plan as Parameters<typeof buildResumeData>[0],
       profileView,
       contact,
       {
         font,
-        summary: input.summary ?? null,
+        summary: options.summary ?? null,
         techStackByParent,
       },
     );
@@ -226,6 +276,8 @@ export class TailorService {
           id: String(item.id),
           text: String(item.text ?? ""),
           part_of: item.part_of ? String(item.part_of) : undefined,
+          metrics: item.metrics as string[] | undefined,
+          skills: item.skills as string[] | undefined,
         })),
       },
       (sourceText, rewrittenText, achievement) => {
@@ -240,14 +292,12 @@ export class TailorService {
     );
 
     return {
-      plan: rewritten,
       resume_data: validation.data,
       validation: {
         dropped_bullets: validation.dropped_bullets,
         fallback_bullets: validation.fallback_bullets,
         issues: validation.issues,
       },
-      providers,
     };
   }
 
@@ -295,13 +345,13 @@ export class TailorService {
         record.issues = [];
       } else {
         rejected.push(achievementId);
-        record.rewritten_text = sourceText;
+        record.rewritten_text = groundedText(
+          sourceText,
+          achievement.metrics as string[] | undefined,
+        );
         record.used_rewrite = false;
         record.validation_passed = false;
-        record.issues = verdict.issues.map(
-          (issue) =>
-            `review edit rejected, fell back to reviewed original: ${issue}`,
-        );
+        record.issues = verdict.issues;
       }
     }
     const usedCount = Object.values(rewrites).filter(
@@ -323,10 +373,20 @@ export class TailorService {
   }
 }
 
-import { validateRewrite } from "../pipeline/rewrite";
+import { DEFAULT_SETTINGS } from "../settings/constants/settings.constants";
+import { groundedText, validateRewrite } from "../pipeline/rewrite";
+import {
+  DEFAULT_MAX_ACHIEVEMENTS,
+  DEFAULT_PROVIDER_CHOICE,
+} from "./constants/tailor.constants";
 
 function lazyRewrite() {
   return { validateRewrite };
+}
+
+/** Pasted titles often bring the quote or full stop next to them. */
+function cleanTitle(title: string): string {
+  return title.replace(/["'`.,;:]+$/, "").trim();
 }
 
 function firstNonEmptyInput(...values: Array<string | undefined>): string {

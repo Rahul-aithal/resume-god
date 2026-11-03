@@ -11,8 +11,22 @@
  */
 
 import type { Profile } from "./jd-parser";
+import {
+  COVERAGE_WEIGHTS,
+  DEFAULT_MAX_ACHIEVEMENTS,
+  EXPERIENCE_TARGET_BULLETS,
+  GRAPH_EXPANSION_HOPS,
+  MAX_PROJECTS,
+  MIN_SEMANTIC_SIMILARITY,
+  PLAN_VERSION,
+  PROJECT_TARGET_BULLETS,
+  RECENCY,
+  SCORE_WEIGHTS,
+  SELECTION_POLICY_VERSION,
+  SEMANTIC_TOP_MATCHES,
+} from "./constants/pipeline.constants";
 
-export const SELECTION_POLICY_VERSION = 3;
+export { SELECTION_POLICY_VERSION };
 
 type Dict = Record<string, unknown>;
 
@@ -75,16 +89,15 @@ export function findMatchedSkills(
 export function recencyScore(
   dateRange: Record<string, unknown> | null | undefined,
 ): number {
-  if (!dateRange) return 0.3;
-  if (dateRange.ongoing) return 1.0;
+  if (!dateRange) return RECENCY.unknown;
+  if (dateRange.ongoing) return RECENCY.ongoing;
   const yearText = String(dateRange.end ?? dateRange.start ?? "");
   const match = /^\d{4}/.exec(yearText);
-  if (!match) return 0.3;
+  if (!match) return RECENCY.unknown;
   const year = Number(match[0]);
-  if (year >= 2026) return 1.0;
-  if (year >= 2025) return 0.8;
-  if (year >= 2024) return 0.65;
-  return 0.4;
+  return (
+    RECENCY.byYear.find((band) => year >= band.fromYear)?.score ?? RECENCY.older
+  );
 }
 
 export interface ScoredAchievement {
@@ -117,6 +130,7 @@ export function achievementScores(
     expandedSkillIds?: Set<string>;
     impliesClosure?: Map<string, Set<string>>;
     semanticScores?: Map<string, number>;
+    experienceIds?: Set<string>;
   } = {},
 ): ScoredAchievement[] {
   const mustIds = options.mustSkillIds ?? new Set<string>();
@@ -155,19 +169,26 @@ export function achievementScores(
     );
     const metrics = [...((achievement.metrics as string[]) ?? [])];
     const recency = recencyScore(achievement.date_range as Dict | null);
-    const metricPoints = Math.min(metrics.length, 2);
+    const metricPoints = Math.min(
+      metrics.length,
+      SCORE_WEIGHTS.maxMetricPoints,
+    );
 
-    const exactPoints = directMust.length * 12 + directNice.length * 7;
-    const graphPoints = expandedMatches.length * 3;
-    const inferredPoints = inferredMatches.length * 1;
-    const semanticPoints = Number((Math.max(similarity, 0) * 8).toFixed(6));
+    const exactPoints =
+      directMust.length * SCORE_WEIGHTS.mustHaveSkill +
+      directNice.length * SCORE_WEIGHTS.niceToHaveSkill;
+    const graphPoints = expandedMatches.length * SCORE_WEIGHTS.expandedSkill;
+    const inferredPoints = inferredMatches.length * SCORE_WEIGHTS.inferredSkill;
+    const semanticPoints = Number(
+      (Math.max(similarity, 0) * SCORE_WEIGHTS.semanticSimilarity).toFixed(6),
+    );
     const score = Number(
       (
         exactPoints +
         graphPoints +
         inferredPoints +
         semanticPoints +
-        recency * 4 +
+        recency * SCORE_WEIGHTS.recency +
         metricPoints
       ).toFixed(6),
     );
@@ -176,7 +197,8 @@ export function achievementScores(
       directMatches.length > 0 ||
       expandedMatches.length > 0 ||
       inferredMatches.length > 0 ||
-      similarity >= 0.08
+      similarity >= MIN_SEMANTIC_SIMILARITY ||
+      options.experienceIds?.has(String(achievement.part_of))
     ) {
       scored.push({
         achievement,
@@ -196,7 +218,7 @@ export function achievementScores(
           graph_expansion: graphPoints,
           inferred: inferredPoints,
           semantic: semanticPoints,
-          recency: Number((recency * 4).toFixed(6)),
+          recency: Number((recency * SCORE_WEIGHTS.recency).toFixed(6)),
           metric: metricPoints,
         },
       });
@@ -206,73 +228,76 @@ export function achievementScores(
   return scored.sort((a, b) => b.score - a.score || a.position - b.position);
 }
 
-export function selectWithSkillAndParentCoverage(
+/**
+ * Chooses bullets by entry, not one at a time: picking the best bullet from
+ * everywhere leaves a resume of one-line entries that read like descriptions.
+ * Experience comes first, then projects by the skills they newly evidence.
+ */
+export function selectForResume(
   ranked: ScoredAchievement[],
-  options: { maxAchievements: number },
+  options: { maxAchievements: number; experienceIds: Set<string> },
 ): ScoredAchievement[] {
-  const maxAchievements = options.maxAchievements;
-  const pool = [...ranked];
+  const { maxAchievements, experienceIds } = options;
+  const parentOf = (row: ScoredAchievement) => String(row.achievement.part_of);
   const selected: ScoredAchievement[] = [];
-  const selectedIds = new Set<string>();
-  const coveredSkills = new Set<string>();
-  const parentCounts = new Map<string, number>();
-
-  while (pool.length > 0 && selected.length < maxAchievements) {
-    let bestIndex: number | null = null;
-    let bestUtility: [number, number, number] | null = null;
-    pool.forEach((row, index) => {
-      const achievementId = String(row.achievement.id);
-      if (selectedIds.has(achievementId)) return;
-      const directMatches = new Set(row.direct_skill_matches);
-      const expandedMatches = new Set(row.expanded_skill_matches);
-      const inferredMatches = new Set(row.inferred_skill_matches);
-      let newDirect = 0;
-      for (const id of directMatches)
-        if (!coveredSkills.has(id)) newDirect += 1;
-      let newExpanded = 0;
-      for (const id of expandedMatches) {
-        if (!coveredSkills.has(id) && !directMatches.has(id)) newExpanded += 1;
-      }
-      let newInferred = 0;
-      for (const id of inferredMatches) {
-        if (
-          !coveredSkills.has(id) &&
-          !directMatches.has(id) &&
-          !expandedMatches.has(id)
-        ) {
-          newInferred += 1;
-        }
-      }
-      const partOf = String(row.achievement.part_of);
-      const parentCount = parentCounts.get(partOf) ?? 0;
-      const utility: [number, number, number] = [
-        newDirect * 1000,
-        newExpanded * 20 + newInferred * 5 + row.score - parentCount * 15,
-        -row.position,
-      ];
-      if (
-        bestUtility === null ||
-        utility[0] > bestUtility[0] ||
-        (utility[0] === bestUtility[0] && utility[1] > bestUtility[1]) ||
-        (utility[0] === bestUtility[0] &&
-          utility[1] === bestUtility[1] &&
-          utility[2] > bestUtility[2])
-      ) {
-        bestIndex = index;
-        bestUtility = utility;
-      }
-    });
-
-    if (bestIndex === null) break;
-    const row = pool.splice(bestIndex, 1)[0];
+  const chosen = new Set<ScoredAchievement>();
+  const covered = new Set<string>();
+  const add = (row: ScoredAchievement) => {
+    if (chosen.has(row) || selected.length >= maxAchievements) return;
+    chosen.add(row);
     selected.push(row);
-    selectedIds.add(String(row.achievement.id));
-    for (const id of row.requirement_skill_matches) coveredSkills.add(id);
-    for (const id of row.inferred_skill_matches) coveredSkills.add(id);
-    const partOf = String(row.achievement.part_of);
-    parentCounts.set(partOf, (parentCounts.get(partOf) ?? 0) + 1);
+    for (const id of row.requirement_skill_matches) covered.add(id);
+    for (const id of row.inferred_skill_matches) covered.add(id);
+  };
+  const newSkills = (rows: ScoredAchievement[], weigh = false) => {
+    const ids = new Set(rows.flatMap((row) => row.direct_skill_matches));
+    let direct = 0;
+    for (const id of ids) if (!covered.has(id)) direct += 1;
+    if (!weigh) return direct;
+    return (
+      direct * COVERAGE_WEIGHTS.newDirectSkill +
+      rows.reduce((total, row) => total + row.score, 0)
+    );
+  };
+
+  const byParent = new Map<string, ScoredAchievement[]>();
+  for (const row of ranked) {
+    const rows = byParent.get(parentOf(row)) ?? [];
+    rows.push(row);
+    byParent.set(parentOf(row), rows);
   }
 
+  for (const [parentId, rows] of byParent) {
+    if (!experienceIds.has(parentId)) continue;
+    rows.slice(0, EXPERIENCE_TARGET_BULLETS).forEach(add);
+  }
+
+  const projects = new Map(
+    [...byParent].filter(([parentId]) => !experienceIds.has(parentId)),
+  );
+  let projectCount = 0;
+  while (projects.size > 0 && selected.length < maxAchievements) {
+    let bestId: string | null = null;
+    let bestWorth = -Infinity;
+    for (const [parentId, rows] of projects) {
+      const worth = newSkills(rows.slice(0, PROJECT_TARGET_BULLETS), true);
+      if (worth > bestWorth) {
+        bestId = parentId;
+        bestWorth = worth;
+      }
+    }
+    const rows = projects.get(bestId!)!.slice(0, PROJECT_TARGET_BULLETS);
+    projects.delete(bestId!);
+    if (projectCount >= MAX_PROJECTS && newSkills(rows) === 0) continue;
+    rows.forEach(add);
+    projectCount += 1;
+  }
+
+  // Spare room deepens the entries already on the resume.
+  const shown = new Set(selected.map(parentOf));
+  for (const row of ranked) {
+    if (shown.has(parentOf(row))) add(row);
+  }
   return selected;
 }
 
@@ -470,7 +495,7 @@ export async function buildTailoringPlan(
 ): Promise<TailoringPlan> {
   const {
     targetTitle,
-    maxAchievements = 10,
+    maxAchievements = DEFAULT_MAX_ACHIEVEMENTS,
     parsedJobDescription = null,
   } = options;
   const impliesEdges = options.impliesEdges ?? [];
@@ -491,14 +516,6 @@ export async function buildTailoringPlan(
     );
   } else {
     parsed = parsedJobDescription;
-    const parsedTitle = String(parsed.role_title ?? "").trim();
-    if (parsedTitle !== targetTitle) {
-      throw new Error(
-        `Target title does not match the job description: you requested '${targetTitle}', but the job description reads as '${
-          parsedTitle || "an unknown role"
-        }'. Leave Target title empty to use the job's own title, or paste the description for the role you named.`,
-      );
-    }
   }
 
   const skills = new Map(profile.skills.map((skill) => [skill.id, skill]));
@@ -531,7 +548,7 @@ export async function buildTailoringPlan(
   for (const skillId of [...matchedSkillIds].sort()) {
     let frontier = new Set([skillId]);
     const seen = new Set([skillId]);
-    for (let hop = 0; hop < 2; hop += 1) {
+    for (let hop = 0; hop < GRAPH_EXPANSION_HOPS; hop += 1) {
       const next = new Set<string>();
       for (const id of frontier) {
         for (const adjacent of adjacency.get(id) ?? []) next.add(adjacent);
@@ -544,7 +561,7 @@ export async function buildTailoringPlan(
       .sort();
     expansionPaths.push({
       from_skill_id: skillId,
-      hops: 2,
+      hops: GRAPH_EXPANSION_HOPS,
       skill_ids: connectedIds,
     });
     for (const id of connectedIds) expandedSkillIds.add(id);
@@ -588,15 +605,21 @@ export async function buildTailoringPlan(
     semanticResults.map((row) => [row.id, row.similarity]),
   );
 
+  // Internships are always worth showing in full, matched or not.
+  const experienceIds = new Set(
+    profile.experiences.map((node) => String(node.id)),
+  );
   const ranked = achievementScores(profile.achievements, matchedSkillIds, {
+    experienceIds,
     mustSkillIds: mustIds,
     niceSkillIds: niceIds,
     expandedSkillIds,
     impliesClosure,
     semanticScores,
   });
-  const selectedRows = selectWithSkillAndParentCoverage(ranked, {
+  const selectedRows = selectForResume(ranked, {
     maxAchievements,
+    experienceIds,
   });
   const selectedIds = new Set(
     selectedRows.map((row) => String(row.achievement.id)),
@@ -718,7 +741,7 @@ export async function buildTailoringPlan(
           row.direct_skill_matches.length > 0 ||
           row.expanded_skill_matches.length > 0 ||
           row.inferred_skill_matches.length > 0 ||
-          row.semantic_similarity >= 0.08,
+          row.semantic_similarity >= MIN_SEMANTIC_SIMILARITY,
       ),
     achievement_text_is_unchanged: selectedAchievements.every(
       (achievement) =>
@@ -736,7 +759,7 @@ export async function buildTailoringPlan(
   };
 
   return {
-    version: 2,
+    version: PLAN_VERSION,
     phase: "tailoring_plan",
     selection_policy_version: SELECTION_POLICY_VERSION,
     profile: { reviewed: profile.reviewed ?? false },
@@ -768,13 +791,15 @@ export async function buildTailoringPlan(
     })),
     semantic_search: {
       method: "deterministic_tfidf_cosine",
-      top_matches: semanticResults.slice(0, 5).map((row) => ({
-        achievement: achievements.get(row.id),
-        similarity: row.similarity,
-      })),
+      top_matches: semanticResults
+        .slice(0, SEMANTIC_TOP_MATCHES)
+        .map((row) => ({
+          achievement: achievements.get(row.id),
+          similarity: row.similarity,
+        })),
     },
     graph_expansion: {
-      hops: 2,
+      hops: GRAPH_EXPANSION_HOPS,
       paths: expansionPaths,
       expanded_skill_ids: [...expandedSkillIds].sort(),
       implies_paths: impliesPaths,

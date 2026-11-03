@@ -4,12 +4,25 @@ import {
   hkdfSync,
   randomBytes,
 } from "node:crypto";
-
-const VERSION = "v1";
-const HKDF_INFO = "resume-god:user-api-keys:v1";
+import {
+  API_KEY_CIPHER,
+  API_KEY_DERIVED_KEY_BYTES,
+  API_KEY_FORMAT_VERSION,
+  API_KEY_HKDF_DIGEST,
+  API_KEY_HKDF_INFO,
+  API_KEY_IV_BYTES,
+} from "./constants/settings.constants";
 
 function deriveKey(secret: string): Buffer {
-  return Buffer.from(hkdfSync("sha256", secret, "", HKDF_INFO, 32));
+  return Buffer.from(
+    hkdfSync(
+      API_KEY_HKDF_DIGEST,
+      secret,
+      "",
+      API_KEY_HKDF_INFO,
+      API_KEY_DERIVED_KEY_BYTES,
+    ),
+  );
 }
 
 /**
@@ -21,14 +34,14 @@ export function encryptApiKey(
   secret: string,
   context: string,
 ): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", deriveKey(secret), iv);
+  const iv = randomBytes(API_KEY_IV_BYTES);
+  const cipher = createCipheriv(API_KEY_CIPHER, deriveKey(secret), iv);
   cipher.setAAD(Buffer.from(context));
   const body = Buffer.concat([
     cipher.update(plaintext, "utf8"),
     cipher.final(),
   ]);
-  return [VERSION, iv, cipher.getAuthTag(), body]
+  return [API_KEY_FORMAT_VERSION, iv, cipher.getAuthTag(), body]
     .map((part) =>
       typeof part === "string" ? part : part.toString("base64url"),
     )
@@ -42,10 +55,11 @@ export function decryptApiKey(
   context: string,
 ): string | null {
   const [version, iv, tag, body] = stored.split(".");
-  if (version !== VERSION || !iv || !tag || body === undefined) return null;
+  if (version !== API_KEY_FORMAT_VERSION || !iv || !tag || body === undefined)
+    return null;
   try {
     const decipher = createDecipheriv(
-      "aes-256-gcm",
+      API_KEY_CIPHER,
       deriveKey(secret),
       Buffer.from(iv, "base64url"),
     );

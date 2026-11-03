@@ -11,6 +11,7 @@ import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { useIsDesktop } from "../lib/use-is-desktop";
+import { isActive, useTailorJobs } from "../lib/use-tailor-jobs";
 import {
   CompaniesIcon,
   DashboardIcon,
@@ -20,6 +21,7 @@ import {
   NavOpenIcon,
   NewJobIcon,
   ReviewIcon,
+  TailoringIcon,
   SettingsIcon,
 } from "./icons";
 import { Button, PageSkeleton, Skeleton, ThemeToggle, cx } from "./ui";
@@ -45,6 +47,7 @@ function navItems(): NavItem[] {
   return [
     { to: "/", label: "Dashboard", icon: DashboardIcon, end: true },
     { to: "/jobs/new", label: "New application", icon: NewJobIcon },
+    { to: "/tailoring", label: "Tailoring", icon: TailoringIcon },
     { to: "/review", label: "Review", icon: ReviewIcon },
     { to: "/companies", label: "Companies", icon: CompaniesIcon },
     { to: "/graph", label: "Knowledge graph", icon: GraphIcon },
@@ -107,6 +110,9 @@ function NavLinks({
   layout: "col" | "row";
   onNavigate?: () => void;
 }) {
+  const { isAuthenticated } = useAuth();
+  const jobs = useTailorJobs(isAuthenticated);
+  const activeJobs = jobs.data?.jobs.filter(isActive).length ?? 0;
   return (
     <nav
       aria-label="Primary"
@@ -134,6 +140,16 @@ function NavLinks({
         >
           <Icon className="h-4 w-4 shrink-0" />
           {label}
+          {to === "/tailoring" && activeJobs > 0 && (
+            <span
+              className="tnum ml-auto rounded-full bg-surface-2 px-1.5 text-xs text-ink"
+              title={`${activeJobs} in progress`}
+            >
+              <span className="sr-only">, </span>
+              {activeJobs}
+              <span className="sr-only"> in progress</span>
+            </span>
+          )}
         </NavLink>
       ))}
     </nav>
@@ -143,6 +159,7 @@ function NavLinks({
 const TITLES: Array<[RegExp, string]> = [
   [/^\/login$/, "Log in"],
   [/^\/jobs\/new/, "New application"],
+  [/^\/tailoring/, "Tailoring"],
   [/^\/review/, "Review"],
   [/^\/companies\/\d+/, "Company"],
   [/^\/companies/, "Companies"],

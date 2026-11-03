@@ -104,6 +104,49 @@ export interface TailorResponse {
   role_id?: number | null;
 }
 
+export type TailorJobStatus = "queued" | "running" | "succeeded" | "failed";
+
+export interface TailorJob {
+  id: string;
+  status: TailorJobStatus;
+  stage: string | null;
+  target_title: string;
+  company: string;
+  role_id: number | null;
+  error: string | null;
+  warning: string | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface TailorJobRequest {
+  jd_text: string;
+  target_title?: string;
+  provider?: string;
+  max_achievements?: number;
+  summary?: string;
+  font?: string;
+  company_id?: number;
+  company_name?: string;
+  job_url?: string;
+  role_status?: string;
+}
+
+export interface TailorJobDetail extends TailorJob {
+  request: TailorJobRequest;
+  result: {
+    plan: PlanJson;
+    resume_data: PlanJson;
+    validation: {
+      dropped_bullets: string[];
+      fallback_bullets: string[];
+      issues: string[];
+    };
+    providers: TailorResponse["providers"];
+  } | null;
+}
+
 export interface ReviewResponse {
   plan: PlanJson;
   rejected_edits: string[];

@@ -6,24 +6,36 @@ import type {
 
 type ProviderStages = TailorResponse["providers"];
 
-interface StoredPlan {
+interface SessionPlan {
   plan: PlanJson;
   providers?: ProviderStages;
+  /** Absent on plans saved before resumes were kept alongside them. */
+  resumeData?: PlanJson;
+  /** Lets reviewed edits be saved with the job they came from. */
+  jobId?: string;
+}
+
+interface StoredPlan extends SessionPlan {
   savedAt: string;
 }
 
 const STORAGE_KEY = "resume-god:plan";
 
 /** In-memory holder for the plan under review (per-tab). */
-let session: { plan: PlanJson; providers?: ProviderStages } | null = load();
+let session: SessionPlan | null = load();
 
-function load(): { plan: PlanJson; providers?: ProviderStages } | null {
+function load(): SessionPlan | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const stored = JSON.parse(raw) as StoredPlan;
     if (!stored?.plan) return null;
-    return { plan: stored.plan, providers: stored.providers };
+    return {
+      plan: stored.plan,
+      providers: stored.providers,
+      resumeData: stored.resumeData,
+      jobId: stored.jobId,
+    };
   } catch {
     return null;
   }
@@ -32,17 +44,23 @@ function load(): { plan: PlanJson; providers?: ProviderStages } | null {
 export function setSessionPlan(
   plan: PlanJson,
   providers?: ProviderStages,
-  roleInfo?: { roleId?: number | null; company?: string; title?: string },
+  extra?: { resumeData?: PlanJson; jobId?: string },
 ): void {
-  session = { plan, providers };
+  session = {
+    plan,
+    providers,
+    resumeData: extra?.resumeData,
+    jobId: extra?.jobId,
+  };
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
         plan,
         providers,
+        resumeData: extra?.resumeData,
+        jobId: extra?.jobId,
         savedAt: new Date().toISOString(),
-        ...roleInfo,
       } satisfies StoredPlan),
     );
   } catch {
@@ -50,10 +68,7 @@ export function setSessionPlan(
   }
 }
 
-export function getSessionPlan(): {
-  plan: PlanJson;
-  providers?: ProviderStages;
-} | null {
+export function getSessionPlan(): SessionPlan | null {
   return session;
 }
 
